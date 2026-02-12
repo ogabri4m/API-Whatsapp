@@ -93,23 +93,10 @@ app.get('/api/dashboard', async (req, res) => {
   }
 });
 
-// Webhooks (sem auth - recebe do Evolution API)
+// Webhooks (recebe do Evolution API)
 app.use('/webhook', webhookRoutes);
 
-// Autenticacao simples por API key para rotas protegidas
-// Desabilitada quando MIDDLEWARE_API_KEY esta vazio no .env
-app.use('/api', (req, res, next) => {
-  const serverKey = config.server.apiKey;
-  if (!serverKey || serverKey.trim() === '') return next();
-
-  const key = req.headers['x-api-key'] || req.query.apikey;
-  if (key !== serverKey) {
-    return res.status(401).json({ error: 'API key invalida' });
-  }
-  next();
-});
-
-// Rotas da API (protegidas por auth quando MIDDLEWARE_API_KEY esta definida)
+// Rotas da API
 app.use('/api/instances', instanceRoutes);
 app.use('/api/messages', messageRoutes);
 
