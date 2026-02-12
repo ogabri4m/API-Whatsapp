@@ -40,25 +40,7 @@ app.use(express.json({ limit: '10mb' }));
 // Dashboard frontend (arquivos estaticos)
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Autenticacao simples por API key (desabilitada quando MIDDLEWARE_API_KEY esta vazio)
-// Para ativar: defina MIDDLEWARE_API_KEY no .env
-app.use('/api', (req, res, next) => {
-  const serverKey = config.server.apiKey;
-  if (!serverKey || serverKey.trim() === '') return next();
-
-  const key = req.headers['x-api-key'] || req.query.apikey;
-  if (key !== serverKey) {
-    return res.status(401).json({ error: 'API key invalida' });
-  }
-  next();
-});
-
-// Rotas da API
-app.use('/api/instances', instanceRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/webhook', webhookRoutes);
-
-// Health check
+// Health check (sem auth)
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -67,7 +49,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Configuracao do sistema (para o dashboard mostrar API Key e links)
+// Configuracao do sistema - SEM AUTH (dashboard precisa acessar)
 app.get('/api/config', (req, res) => {
   res.json({
     evolution: {
@@ -77,7 +59,6 @@ app.get('/api/config', (req, res) => {
     },
     middleware: {
       port: config.server.port,
-      apiKey: config.server.apiKey,
     },
     antiban: {
       delayMin: config.antiban.delayMin,
@@ -92,7 +73,7 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-// Dashboard - status geral do sistema
+// Dashboard - status geral do sistema - SEM AUTH
 app.get('/api/dashboard', async (req, res) => {
   try {
     const queueStats = await queueService.getQueueStats();
@@ -111,6 +92,26 @@ app.get('/api/dashboard', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Webhooks (sem auth - recebe do Evolution API)
+app.use('/webhook', webhookRoutes);
+
+// Autenticacao simples por API key para rotas protegidas
+// Desabilitada quando MIDDLEWARE_API_KEY esta vazio no .env
+app.use('/api', (req, res, next) => {
+  const serverKey = config.server.apiKey;
+  if (!serverKey || serverKey.trim() === '') return next();
+
+  const key = req.headers['x-api-key'] || req.query.apikey;
+  if (key !== serverKey) {
+    return res.status(401).json({ error: 'API key invalida' });
+  }
+  next();
+});
+
+// Rotas da API (protegidas por auth quando MIDDLEWARE_API_KEY esta definida)
+app.use('/api/instances', instanceRoutes);
+app.use('/api/messages', messageRoutes);
 
 // Inicia servidor
 app.listen(config.server.port, () => {
