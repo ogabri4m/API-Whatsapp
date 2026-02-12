@@ -965,7 +965,7 @@
       closeModal('modal-create');
       document.getElementById('create-name').value = '';
 
-      // Mostra QR Code - espera webhook receber (3-5 segundos)
+      // Mostra QR Code imediatamente se veio na resposta, senao busca direto
       if (data.qrCode && typeof data.qrCode === 'string' && data.qrCode.length > 50) {
         currentQrInstance = name;
         const display = document.getElementById('qr-display');
@@ -973,9 +973,8 @@
         display.innerHTML = `<img src="${src}" alt="QR Code" />`;
         document.getElementById('modal-qr').classList.add('active');
       } else {
-        // QR Code e gerado via webhook, espera 4 segundos e busca
-        toast('Gerando QR Code... aguarde', 'info');
-        setTimeout(() => showQrCode(name), 4000);
+        // Busca QR Code imediatamente (sem delay)
+        showQrCode(name);
       }
 
       loadInstances();
@@ -993,8 +992,8 @@
     let attempts = 0;
     qrAutoRefresh = setInterval(async () => {
       attempts++;
-      // Para apos 20 tentativas (40 segundos - QR expira em 60s)
-      if (attempts > 20 || !document.getElementById('modal-qr').classList.contains('active')) {
+      // Para apos 30 tentativas (60 segundos)
+      if (attempts > 30 || !document.getElementById('modal-qr').classList.contains('active')) {
         clearInterval(qrAutoRefresh);
         qrAutoRefresh = null;
         return;

@@ -95,7 +95,7 @@ async function getQrCode(instanceName) {
   try {
     const res = await api.get(`/instance/connect/${instanceName}`);
     const data = res.data;
-    logger.info(`QR connect ${instanceName}: ${JSON.stringify(data).substring(0, 500)}`);
+    logger.info(`QR connect RAW ${instanceName}: ${JSON.stringify(data).substring(0, 800)}`);
 
     // Verifica se ja esta conectado (varios formatos de resposta)
     const state = data.instance?.state || data.instance?.status || data.state || data.status;
@@ -108,6 +108,8 @@ async function getQrCode(instanceName) {
     const code = data.code || data.qrcode?.code || null;
     const pairingCode = data.pairingCode || data.qrcode?.pairingCode || null;
 
+    logger.info(`QR connect PARSED ${instanceName}: base64=${base64 ? 'SIM(' + base64.substring(0, 30) + '...)' : 'NAO'}, code=${code ? 'SIM' : 'NAO'}, state=${state || 'N/A'}`);
+
     return {
       base64,
       code,
@@ -115,7 +117,7 @@ async function getQrCode(instanceName) {
       instance: data.instance || null,
     };
   } catch (err) {
-    logger.warn(`QR connect falhou ${instanceName}: ${err.response?.status} - ${err.response?.data ? JSON.stringify(err.response.data).substring(0, 200) : err.message}`);
+    logger.warn(`QR connect falhou ${instanceName}: ${err.response?.status} - ${err.response?.data ? JSON.stringify(err.response.data).substring(0, 300) : err.message}`);
     return { base64: null, pairingCode: null, code: null, instance: null };
   }
 }

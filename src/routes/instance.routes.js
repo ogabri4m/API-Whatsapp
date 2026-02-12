@@ -47,17 +47,40 @@ router.post('/', async (req, res) => {
     // 4. Registra no sistema anti-ban
     antibanService.registerInstance(instanceName);
 
-    // Extrai QR Code da resposta do create (Evolution API retorna quando qrcode: true)
-    const qrBase64 = instance.qrcode?.base64 || instance.base64 || null;
-    const qrCodeText = instance.qrcode?.code || instance.code || null;
-    const qrPairingCode = instance.qrcode?.pairingCode || instance.pairingCode || null;
+    // Extrai QR Code da resposta do create (Evolution API pode ou nao retornar)
+    let qrBase64 = instance.qrcode?.base64 || instance.base64 || null;
+    let qrCodeText = instance.qrcode?.code || instance.code || null;
+    let qrPairingCode = instance.qrcode?.pairingCode || instance.pairingCode || null;
+
+    logger.info(`Instancia ${instanceName} criada. QR no create response: base64=${qrBase64 ? 'SIM' : 'NAO'}`);
+
+    // Se o create nao retornou QR, busca via /instance/connect (com retries)
+    if (!qrBase64 && !qrCodeText) {
+      logger.info(`QR nao veio no create, buscando via connect endpoint...`);
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        // Aguarda antes de tentar (Evolution API precisa de tempo para gerar QR)
+        await new Promise(r => setTimeout(r, attempt === 1 ? 2000 : 1500));
+        try {
+          const qrData = await evolutionService.getQrCode(instanceName);
+          logger.info(`Tentativa ${attempt} getQrCode: base64=${qrData.base64 ? 'SIM' : 'NAO'}, code=${qrData.code ? 'SIM' : 'NAO'}`);
+          if (qrData.base64 || qrData.code) {
+            qrBase64 = qrData.base64;
+            qrCodeText = qrData.code;
+            qrPairingCode = qrData.pairingCode;
+            break;
+          }
+        } catch (err) {
+          logger.warn(`Tentativa ${attempt} getQrCode falhou: ${err.message}`);
+        }
+      }
+    }
 
     // Salva no store para recuperacao posterior
     if (qrBase64 || qrCodeText) {
       storeQrCode(instanceName, { base64: qrBase64, code: qrCodeText, pairingCode: qrPairingCode });
     }
 
-    logger.info(`Instancia ${instanceName} criada. QR base64=${qrBase64 ? 'SIM' : 'NAO'}`);
+    logger.info(`Instancia ${instanceName} - QR final: base64=${qrBase64 ? 'SIM' : 'NAO'}, code=${qrCodeText ? 'SIM' : 'NAO'}`);
 
     res.status(201).json({
       success: true,
