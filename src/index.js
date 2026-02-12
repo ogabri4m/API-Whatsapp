@@ -40,12 +40,14 @@ app.use(express.json({ limit: '10mb' }));
 // Dashboard frontend (arquivos estaticos)
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Autenticacao simples por API key
+// Autenticacao simples por API key (desabilitada quando MIDDLEWARE_API_KEY esta vazio)
+// Para ativar: defina MIDDLEWARE_API_KEY no .env
 app.use('/api', (req, res, next) => {
-  if (!config.server.apiKey) return next();
+  const serverKey = config.server.apiKey;
+  if (!serverKey || serverKey.trim() === '') return next();
 
   const key = req.headers['x-api-key'] || req.query.apikey;
-  if (key !== config.server.apiKey) {
+  if (key !== serverKey) {
     return res.status(401).json({ error: 'API key invalida' });
   }
   next();
