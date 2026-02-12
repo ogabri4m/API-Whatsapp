@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatsApp Anti-Ban Dashboard</title>
+  <style>
+    /* ========== RESET & BASE ========== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --bg-card: #1a1d27;
+      --bg-card-hover: #222632;
+      --border: #2a2e3b;
+      --text: #e4e6ed;
+      --text-muted: #8b8fa3;
+      --green: #22c55e;
+      --green-bg: rgba(34,197,94,.12);
+      --red: #ef4444;
+      --red-bg: rgba(239,68,68,.12);
+      --yellow: #eab308;
+      --yellow-bg: rgba(234,179,8,.12);
+      --blue: #3b82f6;
+      --blue-bg: rgba(59,130,246,.12);
+      --purple: #a855f7;
+      --purple-bg: rgba(168,85,247,.12);
+      --accent: #3b82f6;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ========== LAYOUT ========== */
+    .app { display: flex; min-height: 100vh; }
+
+    .sidebar {
+      width: 240px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      padding: 0 24px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .sidebar-logo h1 { font-size: 16px; font-weight: 700; }
+    .sidebar-logo h1 span { color: var(--green); }
+    .sidebar-logo p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 24px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text-muted);
+      transition: all .15s;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover { background: var(--bg-card-hover); color: var(--text); }
+    .nav-item.active {
+      color: var(--accent);
+      background: var(--blue-bg);
+      border-left-color: var(--accent);
+      font-weight: 600;
+    }
+    .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+    .main {
+      margin-left: 240px;
+      flex: 1;
+      padding: 32px;
+      max-width: 1200px;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .page-header { margin-bottom: 24px; }
+    .page-header h2 { font-size: 22px; font-weight: 700; }
+    .page-header p { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
+
+    /* ========== CARDS ========== */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .stat-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+    .stat-card .sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ========== BADGES ========== */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-green { background: var(--green-bg); color: var(--green); }
+    .badge-red { background: var(--red-bg); color: var(--red); }
+    .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+    .badge-blue { background: var(--blue-bg); color: var(--blue); }
+    .badge-purple { background: var(--purple-bg); color: var(--purple); }
+
+    .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot-green { background: var(--green); }
+    .dot-red { background: var(--red); }
+    .dot-yellow { background: var(--yellow); }
+
+    /* ========== TABLE ========== */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-card-hover); }
+
+    /* ========== FORMS ========== */
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { resize: vertical; min-height: 80px; }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* ========== BUTTONS ========== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: inherit;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-success { background: var(--green); color: #fff; }
+    .btn-success:hover { background: #16a34a; }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { background: var(--bg-card-hover); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ========== TOAST ========== */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      animation: slideIn .3s ease;
+      max-width: 400px;
+    }
+    .toast-success { background: var(--green); color: #fff; }
+    .toast-error { background: var(--red); color: #fff; }
+    .toast-info { background: var(--blue); color: #fff; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ========== PROGRESS BAR ========== */
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .3s;
+    }
+
+    /* ========== QR CODE ========== */
+    .qr-container {
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+    .qr-container img {
+      max-width: 280px;
+      border-radius: var(--radius);
+      border: 2px solid var(--border);
+    }
+
+    /* ========== MODAL ========== */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.6);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal h3 { font-size: 18px; margin-bottom: 20px; }
+
+    /* ========== RESPONSIVE ========== */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 16px; }
+      .form-row { grid-template-columns: 1fr; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ========== INSTANCE CARD ========== */
+    .instance-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+    .instance-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color .15s;
+    }
+    .instance-card:hover { border-color: var(--accent); }
+    .instance-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .instance-name { font-weight: 700; font-size: 15px; }
+    .instance-details { font-size: 12px; color: var(--text-muted); }
+    .instance-details div { margin-bottom: 6px; display: flex; justify-content: space-between; }
+    .instance-details span:last-child { color: var(--text); font-weight: 500; }
+    .instance-actions { margin-top: 14px; display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <h1>Whats<span>Anti-Ban</span></h1>
+      <p>Middleware Dashboard</p>
+    </div>
+
+    <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item" data-page="instances" onclick="showPage('instances')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Instancias
+    </div>
+    <div class="nav-item" data-page="messages" onclick="showPage('messages')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      Mensagens
+    </div>
+    <div class="nav-item" data-page="queue" onclick="showPage('queue')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Fila
+    </div>
+    <div class="nav-item" data-page="settings" onclick="showPage('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Configuracoes
+    </div>
+  </aside>
+
+  <!-- ========== MAIN CONTENT ========== -->
+  <main class="main">
+
+    <!-- ===== DASHBOARD PAGE ===== -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <h2>Dashboard</h2>
+        <p>Visao geral do sistema anti-ban</p>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">Instancias Ativas</div>
+          <div class="value" id="stat-instances">-</div>
+          <div class="sub" id="stat-instances-sub">Carregando...</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Msgs Enviadas Hoje</div>
+          <div class="value" id="stat-sent-today">-</div>
+          <div class="sub" id="stat-sent-sub">Total combinado</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Fila Aguardando</div>
+          <div class="value" id="stat-queue">-</div>
+          <div class="sub" id="stat-queue-sub">Na fila</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Status Envio</div>
+          <div class="value" id="stat-sending-status">-</div>
+          <div class="sub" id="stat-sending-sub">Horario de envio</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          Instancias - Resumo
+          <button class="btn btn-outline btn-sm" onclick="refreshDashboard()">Atualizar</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Conexao</th>
+                <th>Msgs Hoje</th>
+                <th>Limite</th>
+                <th>Uso</th>
+                <th>Proxy</th>
+                <th>Fingerprint</th>
+              </tr>
+            </thead>
+            <tbody id="dashboard-instances-table">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== INSTANCES PAGE ===== -->
+    <div id="page-instances" class="page">
+      <div class="page-header">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h2>Instancias</h2>
+            <p>Gerencie instancias WhatsApp com protecao anti-ban</p>
+          </div>
+          <button class="btn btn-primary" onclick="openCreateModal()">+ Nova Instancia</button>
+        </div>
+      </div>
+
+      <div class="instance-grid" id="instances-grid">
+        <div style="color:var(--text-muted);text-align:center;padding:40px">Carregando instancias...</div>
+      </div>
+    </div>
+
+    <!-- ===== MESSAGES PAGE ===== -->
+    <div id="page-messages" class="page">
+      <div class="page-header">
+        <h2>Enviar Mensagens</h2>
+        <p>Mensagens sao enfileiradas com delays humanizados automaticos</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <!-- Envio Individual -->
+        <div class="card">
+          <div class="card-title">Envio Individual</div>
+          <form id="form-single-msg" onsubmit="sendSingleMessage(event)">
+            <div class="form-group">
+              <label>Numero (com DDI)</label>
+              <input type="text" id="msg-number" placeholder="5511999999999" required />
+            </div>
+            <div class="form-group">
+              <label>Mensagem</label>
+              <textarea id="msg-text" placeholder="Digite a mensagem..." required></textarea>
+            </div>
+            <div class="form-group">
+              <label>Instancia (opcional)</label>
+              <select id="msg-instance">
+                <option value="">Auto-selecionar melhor</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-success">Enviar para Fila</button>
+          </form>
+        </div>
+
+        <!-- Envio em Lote -->
+        <div class="card">
+          <div class="card-title">Envio em Lote</div>
+          <form id="form-batch-msg" onsubmit="sendBatchMessages(event)">
+            <div class="form-group">
+              <label>Numeros (um por linha)</label>
+              <textarea id="batch-numbers" placeholder="5511999999999&#10;5511888888888&#10;5511777777777" rows="5" required></textarea>
+            </div>
+            <div class="form-group">
+              <label>Mensagem (igual para todos)</label>
+              <textarea id="batch-text" placeholder="Digite a mensagem..." required></textarea>
+            </div>
+            <div class="form-group">
+              <label>Instancia (opcional)</label>
+              <select id="batch-instance">
+                <option value="">Auto-selecionar melhor</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-success">Enviar Lote para Fila</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== QUEUE PAGE ===== -->
+    <div id="page-queue" class="page">
+      <div class="page-header">
+        <h2>Fila de Mensagens</h2>
+        <p>Controle o processamento da fila</p>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">Aguardando</div>
+          <div class="value" id="q-waiting">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Processando</div>
+          <div class="value" id="q-active">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Agendadas (delay)</div>
+          <div class="value" id="q-delayed">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Completadas</div>
+          <div class="value" id="q-completed">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Falhadas</div>
+          <div class="value" id="q-failed">-</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Controles da Fila</div>
+        <div class="btn-group">
+          <button class="btn btn-success" onclick="queueAction('resume')">Retomar Fila</button>
+          <button class="btn btn-outline" onclick="queueAction('pause')">Pausar Fila</button>
+          <button class="btn btn-danger" onclick="queueAction('clean')">Limpar Completados</button>
+          <button class="btn btn-outline" onclick="refreshQueue()">Atualizar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS PAGE ===== -->
+    <div id="page-settings" class="page">
+      <div class="page-header">
+        <h2>Configuracoes</h2>
+        <p>Configuracao da conexao com a API</p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Conexao do Dashboard</div>
+        <div class="form-group">
+          <label>URL do Middleware</label>
+          <input type="text" id="cfg-url" placeholder="http://localhost:3100" />
+        </div>
+        <div class="form-group">
+          <label>API Key</label>
+          <input type="password" id="cfg-apikey" placeholder="Sua API key" />
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()">Salvar</button>
+        <button class="btn btn-outline" onclick="testConnection()" style="margin-left:8px">Testar Conexao</button>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">Sobre o Sistema</div>
+        <div class="instance-details">
+          <div><span>Versao</span><span>1.0.0</span></div>
+          <div><span>Motor</span><span>Evolution API v2 + Baileys</span></div>
+          <div><span>Fila</span><span>BullMQ (Redis)</span></div>
+          <div><span>Protecoes</span><span>Proxy BR + Fingerprint + Delays Gaussianos + Warm-up</span></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ========== CREATE INSTANCE MODAL ========== -->
+<div class="modal-overlay" id="modal-create">
+  <div class="modal">
+    <h3>Nova Instancia WhatsApp</h3>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px">
+      A instancia sera criada automaticamente com proxy residencial BR e fingerprint aleatorio.
+    </p>
+    <form onsubmit="createInstance(event)">
+      <div class="form-group">
+        <label>Nome da Instancia</label>
+        <input type="text" id="create-name" placeholder="whats01" required pattern="[a-zA-Z0-9_-]+" title="Apenas letras, numeros, - e _" />
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modal-create')">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-create">Criar Instancia</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========== QR CODE MODAL ========== -->
+<div class="modal-overlay" id="modal-qr">
+  <div class="modal">
+    <h3>Conectar WhatsApp</h3>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px">
+      Escaneie o QR Code com seu WhatsApp: Configuracoes > Aparelhos conectados > Conectar aparelho
+    </p>
+    <div class="qr-container" id="qr-display">
+      <p style="color:var(--text-muted)">Carregando QR Code...</p>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-outline" onclick="closeModal('modal-qr')">Fechar</button>
+      <button class="btn btn-primary" onclick="refreshQrCode()">Atualizar QR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TOAST CONTAINER ========== -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+  // ============================================================
+  // STATE
+  // ============================================================
+  let API_URL = localStorage.getItem('api_url') || window.location.origin;
+  let API_KEY = localStorage.getItem('api_key') || '';
+  let currentQrInstance = '';
+  let refreshInterval = null;
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('cfg-url').value = API_URL;
+    document.getElementById('cfg-apikey').value = API_KEY;
+    refreshDashboard();
+    startAutoRefresh();
+  });
+
+  function startAutoRefresh() {
+    if (refreshInterval) clearInterval(refreshInterval);
+    refreshInterval = setInterval(() => {
+      const activePage = document.querySelector('.page.active')?.id;
+      if (activePage === 'page-dashboard') refreshDashboard();
+      else if (activePage === 'page-instances') loadInstances();
+      else if (activePage === 'page-queue') refreshQueue();
+    }, 10000);
+  }
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+  function showPage(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    document.querySelector(`.nav-item[data-page="${name}"]`).classList.add('active');
+
+    if (name === 'instances') loadInstances();
+    if (name === 'messages') loadInstanceSelectors();
+    if (name === 'queue') refreshQueue();
+    if (name === 'dashboard') refreshDashboard();
+  }
+
+  // ============================================================
+  // API HELPERS
+  // ============================================================
+  async function api(method, path, body = null) {
+    const opts = {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+    };
+    if (API_KEY) opts.headers['x-api-key'] = API_KEY;
+    if (body) opts.body = JSON.stringify(body);
+
+    const res = await fetch(API_URL + path, opts);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+    return data;
+  }
+
+  // ============================================================
+  // TOAST
+  // ============================================================
+  function toast(message, type = 'info') {
+    const container = document.getElementById('toasts');
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+
+  // ============================================================
+  // MODAL
+  // ============================================================
+  function openCreateModal() { document.getElementById('modal-create').classList.add('active'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+  // Close modals on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(o => {
+    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); });
+  });
+
+  // ============================================================
+  // DASHBOARD
+  // ============================================================
+  async function refreshDashboard() {
+    try {
+      const data = await api('GET', '/api/dashboard');
+
+      // Stats
+      const instances = Object.keys(data.instances || {});
+      const activeCount = instances.filter(n => data.instances[n].status === 'active').length;
+      const totalSent = instances.reduce((s, n) => s + (data.instances[n].messagesSentToday || 0), 0);
+
+      document.getElementById('stat-instances').textContent = activeCount;
+      document.getElementById('stat-instances-sub').textContent = `${instances.length} total`;
+      document.getElementById('stat-sent-today').textContent = totalSent;
+      document.getElementById('stat-queue').textContent =
+        (data.queue?.waiting || 0) + (data.queue?.delayed || 0) + (data.queue?.active || 0);
+      document.getElementById('stat-queue-sub').textContent =
+        `${data.queue?.completed || 0} completadas, ${data.queue?.failed || 0} falhas`;
+
+      const isWithin = data.system?.withinSendingHours;
+      document.getElementById('stat-sending-status').innerHTML =
+        isWithin
+          ? '<span class="badge badge-green"><span class="dot dot-green"></span>Ativo</span>'
+          : '<span class="badge badge-yellow"><span class="dot dot-yellow"></span>Fora do horario</span>';
+      document.getElementById('stat-sending-sub').textContent = data.system?.sendingWindow || '';
+
+      // Table
+      const tbody = document.getElementById('dashboard-instances-table');
+      if (instances.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Nenhuma instancia criada</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = instances.map(name => {
+        const inst = data.instances[name];
+        const limit = inst.dailyLimit || 0;
+        const sent = inst.messagesSentToday || 0;
+        const pct = limit > 0 ? Math.round((sent / limit) * 100) : 0;
+        const barColor = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--yellow)' : 'var(--green)';
+        const statusBadge = inst.status === 'active'
+          ? '<span class="badge badge-green"><span class="dot dot-green"></span>Ativo</span>'
+          : '<span class="badge badge-red"><span class="dot dot-red"></span>Pausado</span>';
+        const warmupBadge = inst.isWarmup ? ' <span class="badge badge-yellow">Warm-up</span>' : '';
+
+        return `<tr>
+          <td><strong>${name}</strong>${warmupBadge}</td>
+          <td>${statusBadge}</td>
+          <td>${sent}</td>
+          <td>${limit}</td>
+          <td style="min-width:100px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;width:35px">${pct}%</span>
+              <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>
+            </div>
+          </td>
+          <td><span class="badge badge-${inst.proxy !== 'none' ? 'blue' : 'red'}">${inst.proxy !== 'none' ? 'Ativo' : 'Sem'}</span></td>
+          <td><span class="badge badge-purple">${inst.fingerprint !== 'none' ? inst.fingerprint.substring(0,8) : 'N/A'}</span></td>
+        </tr>`;
+      }).join('');
+
+    } catch (err) {
+      document.getElementById('stat-instances').textContent = '!';
+      document.getElementById('stat-instances-sub').textContent = 'Erro de conexao';
+    }
+  }
+
+  // ============================================================
+  // INSTANCES
+  // ============================================================
+  async function loadInstances() {
+    try {
+      const data = await api('GET', '/api/instances');
+      const grid = document.getElementById('instances-grid');
+
+      if (!data.instances || data.instances.length === 0) {
+        grid.innerHTML = `<div style="color:var(--text-muted);text-align:center;padding:40px;grid-column:1/-1">
+          Nenhuma instancia criada. Clique em "+ Nova Instancia" para comecar.
+        </div>`;
+        return;
+      }
+
+      grid.innerHTML = data.instances.map(inst => {
+        const name = inst.name;
+        const state = inst.state || 'unknown';
+        const ab = inst.antiban || {};
+        const fp = inst.fingerprint || {};
+        const px = inst.proxy || {};
+
+        const connBadge = state === 'open'
+          ? '<span class="badge badge-green"><span class="dot dot-green"></span>Conectado</span>'
+          : state === 'close'
+          ? '<span class="badge badge-red"><span class="dot dot-red"></span>Desconectado</span>'
+          : '<span class="badge badge-yellow"><span class="dot dot-yellow"></span>' + state + '</span>';
+
+        const statusBadge = ab.canSend !== false
+          ? ''
+          : `<br><span class="badge badge-red" style="margin-top:4px">${ab.reason || 'Bloqueado'}</span>`;
+
+        return `<div class="instance-card">
+          <div class="instance-header">
+            <span class="instance-name">${name}</span>
+            ${connBadge}
+          </div>
+          <div class="instance-details">
+            <div><span>Msgs Hoje</span><span>${ab.messagesSentToday || 0} / ${ab.dailyLimit || '?'}</span></div>
+            <div><span>Warm-up</span><span>${ab.isWarmup ? 'Sim' : 'Nao'}</span></div>
+            <div><span>Erros</span><span>${ab.errors || 0}</span></div>
+            <div><span>Navegador</span><span>${fp.browser || 'N/A'}</span></div>
+            <div><span>Tela</span><span>${fp.screen || 'N/A'}</span></div>
+            <div><span>Timezone</span><span>${fp.timezone || 'N/A'}</span></div>
+            <div><span>Proxy</span><span>${px.enabled !== false ? 'Ativo' : 'Inativo'}</span></div>
+          </div>
+          ${statusBadge}
+          <div class="instance-actions">
+            <button class="btn btn-outline btn-sm" onclick="showQrCode('${name}')">QR Code</button>
+            <button class="btn btn-outline btn-sm" onclick="rotateProxy('${name}')">Rotacionar Proxy</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteInstance('${name}')">Remover</button>
+          </div>
+        </div>`;
+      }).join('');
+
+    } catch (err) {
+      document.getElementById('instances-grid').innerHTML =
+        `<div style="color:var(--red);text-align:center;padding:40px;grid-column:1/-1">Erro: ${err.message}</div>`;
+    }
+  }
+
+  async function createInstance(e) {
+    e.preventDefault();
+    const name = document.getElementById('create-name').value.trim();
+    if (!name) return;
+
+    const btn = document.getElementById('btn-create');
+    btn.disabled = true;
+    btn.textContent = 'Criando...';
+
+    try {
+      const data = await api('POST', '/api/instances', { name });
+      toast(`Instancia "${name}" criada com sucesso!`, 'success');
+      closeModal('modal-create');
+      document.getElementById('create-name').value = '';
+
+      // Show QR Code automatically
+      if (data.qrCode) {
+        showQrCode(name);
+      }
+
+      loadInstances();
+      refreshDashboard();
+    } catch (err) {
+      toast(`Erro: ${err.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Criar Instancia';
+    }
+  }
+
+  async function showQrCode(name) {
+    currentQrInstance = name;
+    const display = document.getElementById('qr-display');
+    display.innerHTML = '<p style="color:var(--text-muted)">Carregando QR Code...</p>';
+    document.getElementById('modal-qr').classList.add('active');
+
+    try {
+      const data = await api('GET', `/api/instances/${name}/qrcode`);
+      if (data.base64) {
+        display.innerHTML = `<img src="${data.base64}" alt="QR Code" />`;
+      } else if (data.pairingCode) {
+        display.innerHTML = `<div style="text-align:center">
+          <p style="font-size:28px;font-weight:700;letter-spacing:4px;color:var(--green)">${data.pairingCode}</p>
+          <p style="color:var(--text-muted);margin-top:8px;font-size:13px">Use este codigo de emparelhamento</p>
+        </div>`;
+      } else if (data.instance?.state === 'open') {
+        display.innerHTML = `<div style="text-align:center">
+          <span class="badge badge-green" style="font-size:16px;padding:8px 20px">Ja conectado!</span>
+        </div>`;
+      } else {
+        display.innerHTML = '<p style="color:var(--text-muted)">QR Code nao disponivel. Tente novamente em alguns segundos.</p>';
+      }
+    } catch (err) {
+      display.innerHTML = `<p style="color:var(--red)">Erro: ${err.message}</p>`;
+    }
+  }
+
+  async function refreshQrCode() {
+    if (currentQrInstance) showQrCode(currentQrInstance);
+  }
+
+  async function rotateProxy(name) {
+    try {
+      await api('POST', `/api/instances/${name}/rotate-proxy`);
+      toast(`Proxy rotacionado para "${name}"`, 'success');
+      loadInstances();
+    } catch (err) {
+      toast(`Erro: ${err.message}`, 'error');
+    }
+  }
+
+  async function deleteInstance(name) {
+    if (!confirm(`Tem certeza que deseja remover a instancia "${name}"? Esta acao nao pode ser desfeita.`)) return;
+
+    try {
+      await api('DELETE', `/api/instances/${name}`);
+      toast(`Instancia "${name}" removida`, 'success');
+      loadInstances();
+      refreshDashboard();
+    } catch (err) {
+      toast(`Erro: ${err.message}`, 'error');
+    }
+  }
+
+  // ============================================================
+  // MESSAGES
+  // ============================================================
+  async function loadInstanceSelectors() {
+    try {
+      const data = await api('GET', '/api/dashboard');
+      const names = Object.keys(data.instances || {});
+
+      ['msg-instance', 'batch-instance'].forEach(id => {
+        const sel = document.getElementById(id);
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Auto-selecionar melhor</option>';
+        names.forEach(n => {
+          sel.innerHTML += `<option value="${n}">${n}</option>`;
+        });
+        sel.value = current;
+      });
+    } catch (err) { /* ignore */ }
+  }
+
+  async function sendSingleMessage(e) {
+    e.preventDefault();
+    const number = document.getElementById('msg-number').value.trim();
+    const text = document.getElementById('msg-text').value.trim();
+    const instanceName = document.getElementById('msg-instance').value || undefined;
+
+    try {
+      const data = await api('POST', '/api/messages/send', { number, text, instanceName });
+      toast(`Mensagem enfileirada! Job: ${data.jobId}`, 'success');
+      document.getElementById('msg-number').value = '';
+      document.getElementById('msg-text').value = '';
+    } catch (err) {
+      toast(`Erro: ${err.message}`, 'error');
+    }
+  }
+
+  async function sendBatchMessages(e) {
+    e.preventDefault();
+    const numbers = document.getElementById('batch-numbers').value.trim().split('\n').filter(n => n.trim());
+    const text = document.getElementById('batch-text').value.trim();
+    const instanceName = document.getElementById('batch-instance').value || undefined;
+
+    if (numbers.length === 0) return toast('Informe pelo menos um numero', 'error');
+
+    const messages = numbers.map(n => ({ number: n.trim(), text }));
+
+    try {
+      const data = await api('POST', '/api/messages/send-batch', { messages, instanceName });
+      toast(`${data.totalQueued} mensagens enfileiradas!`, 'success');
+      document.getElementById('batch-numbers').value = '';
+      document.getElementById('batch-text').value = '';
+    } catch (err) {
+      toast(`Erro: ${err.message}`, 'error');
+    }
+  }
+
+  // ============================================================
+  // QUEUE
+  // ============================================================
+  async function refreshQueue() {
+    try {
+      const data = await api('GET', '/api/messages/queue/stats');
+      document.getElementById('q-waiting').textContent = data.waiting || 0;
+      document.getElementById('q-active').textContent = data.active || 0;
+      document.getElementById('q-delayed').textContent = data.delayed || 0;
+      document.getElementById('q-completed').textContent = data.completed || 0;
+      document.getElementById('q-failed').textContent = data.failed || 0;
+    } catch (err) {
+      toast(`Erro ao carregar fila: ${err.message}`, 'error');
+    }
+  }
+
+  async function queueAction(action) {
+    try {
+      await api('POST', `/api/messages/queue/${action}`);
+      toast(`Fila: ${action} executado!`, 'success');
+      refreshQueue();
+    } catch (err) {
+      toast(`Erro: ${err.message}`, 'error');
+    }
+  }
+
+  // ============================================================
+  // SETTINGS
+  // ============================================================
+  function saveSettings() {
+    API_URL = document.getElementById('cfg-url').value.trim().replace(/\/$/, '');
+    API_KEY = document.getElementById('cfg-apikey').value.trim();
+    localStorage.setItem('api_url', API_URL);
+    localStorage.setItem('api_key', API_KEY);
+    toast('Configuracoes salvas!', 'success');
+  }
+
+  async function testConnection() {
+    saveSettings();
+    try {
+      const data = await api('GET', '/health');
+      if (data.status === 'ok') {
+        toast('Conexao OK!', 'success');
+      }
+    } catch (err) {
+      toast(`Falha na conexao: ${err.message}`, 'error');
+    }
+  }
+</script>
+
+</body>
+</html>
