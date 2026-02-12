@@ -44,12 +44,17 @@ router.post('/evolution', async (req, res) => {
 
     // Captura QR Code do evento qrcode.updated
     if (eventType === 'qrcode.updated') {
+      logger.info(`QR webhook FULL BODY ${instanceName}: ${JSON.stringify(event).substring(0, 1000)}`);
       const qrData = event.data || {};
-      logger.info(`QR Code recebido via webhook para ${instanceName}: base64=${qrData.qrcode?.base64 ? 'SIM' : 'NAO'}`);
+      // Busca em todos os locais possiveis
+      const base64 = qrData.qrcode?.base64 || qrData.base64 || event.qrcode?.base64 || null;
+      const code = qrData.qrcode?.code || qrData.code || event.qrcode?.code || null;
+      const pairingCode = qrData.qrcode?.pairingCode || qrData.pairingCode || event.qrcode?.pairingCode || null;
+      logger.info(`QR Code via webhook para ${instanceName}: base64=${base64 ? 'SIM' : 'NAO'}, code=${code ? 'SIM' : 'NAO'}`);
       qrCodeStore[instanceName] = {
-        base64: qrData.qrcode?.base64 || qrData.base64 || null,
-        pairingCode: qrData.qrcode?.pairingCode || qrData.pairingCode || null,
-        code: qrData.qrcode?.code || qrData.code || null,
+        base64,
+        pairingCode,
+        code,
         timestamp: Date.now(),
       };
     }

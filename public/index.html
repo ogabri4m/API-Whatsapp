@@ -263,6 +263,10 @@
       from { transform: translateX(100%); opacity: 0; }
       to { transform: translateX(0); opacity: 1; }
     }
+    @keyframes qrProgress {
+      from { width: 0%; }
+      to { width: 100%; }
+    }
 
     /* ========== PROGRESS BAR ========== */
     .progress-bar {
@@ -676,6 +680,7 @@
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
       <button class="btn btn-outline" onclick="closeModal('modal-qr')">Fechar</button>
+      <button class="btn btn-outline" onclick="forceReconnect(currentQrInstance)">Reconectar</button>
       <button class="btn btn-primary" onclick="refreshQrCode()">Atualizar QR</button>
     </div>
   </div>
@@ -990,14 +995,23 @@
   function startQrAutoRefresh(name) {
     if (qrAutoRefresh) clearInterval(qrAutoRefresh);
     let attempts = 0;
+    const maxAttempts = 30;
     qrAutoRefresh = setInterval(async () => {
       attempts++;
-      // Para apos 30 tentativas (60 segundos)
-      if (attempts > 30 || !document.getElementById('modal-qr').classList.contains('active')) {
+      if (attempts > maxAttempts || !document.getElementById('modal-qr').classList.contains('active')) {
         clearInterval(qrAutoRefresh);
         qrAutoRefresh = null;
+        const display = document.getElementById('qr-display');
+        display.innerHTML = `<div style="text-align:center">
+          <p style="color:var(--red);font-size:14px;margin-bottom:12px">Nao foi possivel obter o QR Code</p>
+          <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px">Verifique os logs do container anti-ban-middleware</p>
+          <button class="btn btn-primary btn-sm" onclick="forceReconnect('${name}')">Forcar Reconexao</button>
+        </div>`;
         return;
       }
+      // Atualiza contador visual
+      const counterEl = document.getElementById('qr-attempt-counter');
+      if (counterEl) counterEl.textContent = `Tentativa ${attempts}/${maxAttempts}...`;
       try {
         const data = await api('GET', `/api/instances/${name}/qrcode`);
         const display = document.getElementById('qr-display');
@@ -1048,18 +1062,48 @@
       } else {
         // QR nao disponivel ainda - inicia auto-refresh
         display.innerHTML = `<div style="text-align:center">
-          <p style="color:var(--yellow);font-size:14px;margin-bottom:12px">Buscando QR Code...</p>
-          <p style="color:var(--text-muted);font-size:13px">Atualizando automaticamente a cada 2 segundos...</p>
+          <p style="color:var(--yellow);font-size:14px;margin-bottom:8px">Buscando QR Code...</p>
+          <p id="qr-attempt-counter" style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Tentativa 1/30...</p>
+          <div style="margin-bottom:12px">
+            <div class="progress-bar" style="width:200px;margin:0 auto">
+              <div class="progress-fill" style="width:0%;background:var(--yellow);animation:qrProgress 60s linear forwards"></div>
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="forceReconnect('${name}')">Forcar Reconexao</button>
         </div>`;
         startQrAutoRefresh(name);
       }
     } catch (err) {
-      display.innerHTML = `<p style="color:var(--red)">Erro: ${err.message}</p>`;
+      display.innerHTML = `<div style="text-align:center">
+        <p style="color:var(--red);margin-bottom:12px">Erro: ${err.message}</p>
+        <button class="btn btn-primary btn-sm" onclick="forceReconnect('${currentQrInstance}')">Tentar Reconectar</button>
+      </div>`;
     }
   }
 
   async function refreshQrCode() {
     if (currentQrInstance) showQrCode(currentQrInstance);
+  }
+
+  async function forceReconnect(name) {
+    if (!name) return;
+    if (qrAutoRefresh) { clearInterval(qrAutoRefresh); qrAutoRefresh = null; }
+    const display = document.getElementById('qr-display');
+    display.innerHTML = '<p style="color:var(--text-muted)">Forcando reconexao...</p>';
+    try {
+      // Chama connect endpoint diretamente que forca nova geracao de QR
+      const data = await api('GET', `/api/instances/${name}/qrcode`);
+      if (data.base64) {
+        const src = data.base64.startsWith('data:') ? data.base64 : 'data:image/png;base64,' + data.base64;
+        display.innerHTML = `<img src="${src}" alt="QR Code" />`;
+      } else {
+        toast('Reconexao iniciada, buscando QR...', 'info');
+        showQrCode(name);
+      }
+    } catch (err) {
+      toast(`Erro ao reconectar: ${err.message}`, 'error');
+      showQrCode(name);
+    }
   }
 
   async function rotateProxy(name) {

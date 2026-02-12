@@ -6,6 +6,7 @@
  * configuracao de proxy e webhooks.
  */
 const axios = require('axios');
+const QRCode = require('qrcode');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -37,11 +38,22 @@ api.interceptors.response.use(
  * @param {object} options - Opcoes adicionais (webhook, fingerprint)
  */
 async function createInstance(instanceName, options = {}) {
-  // Payload minimo para Evolution API v2.2.3
+  const webhookUrl = options.webhookUrl || 'http://anti-ban-middleware:3100/webhook/evolution';
+
   const payload = {
     instanceName,
     integration: 'WHATSAPP-BAILEYS',
     qrcode: true,
+    webhook: {
+      url: webhookUrl,
+      webhookByEvents: true,
+      events: [
+        'qrcode.updated',
+        'connection.update',
+        'messages.upsert',
+        'messages.update',
+      ],
+    },
   };
 
   const { data } = await api.post('/instance/create', payload);
@@ -104,11 +116,21 @@ async function getQrCode(instanceName) {
     }
 
     // Extrai QR de qualquer formato (v2.x varia entre versoes)
-    const base64 = data.base64 || data.qrcode?.base64 || null;
+    let base64 = data.base64 || data.qrcode?.base64 || null;
     const code = data.code || data.qrcode?.code || null;
     const pairingCode = data.pairingCode || data.qrcode?.pairingCode || null;
 
-    logger.info(`QR connect PARSED ${instanceName}: base64=${base64 ? 'SIM(' + base64.substring(0, 30) + '...)' : 'NAO'}, code=${code ? 'SIM' : 'NAO'}, state=${state || 'N/A'}`);
+    // Se temos o texto do QR mas nao a imagem, geramos a imagem
+    if (!base64 && code) {
+      try {
+        base64 = await QRCode.toDataURL(code, { width: 300, margin: 2 });
+        logger.info(`QR gerado via qrcode lib para ${instanceName}`);
+      } catch (qrErr) {
+        logger.warn(`Falha ao gerar QR image: ${qrErr.message}`);
+      }
+    }
+
+    logger.info(`QR connect PARSED ${instanceName}: base64=${base64 ? 'SIM' : 'NAO'}, code=${code ? 'SIM' : 'NAO'}, state=${state || 'N/A'}`);
 
     return {
       base64,
