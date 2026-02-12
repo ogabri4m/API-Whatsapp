@@ -52,11 +52,12 @@ router.post('/', async (req, res) => {
     try {
       await evolutionService.setWebhook(instanceName,
         'http://anti-ban-middleware:3100/webhook/evolution',
-        ['qrcode.updated', 'connection.update', 'messages.upsert', 'messages.update']
+        ['QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_UPDATE']
       );
       logger.info(`Webhook per-instance configurado para ${instanceName}`);
     } catch (webhookErr) {
       logger.warn(`Webhook per-instance falhou para ${instanceName}: ${webhookErr.message}`);
+      // Nao e critico - o webhook global do docker-compose deve funcionar
     }
 
     // Extrai QR Code da resposta do create (Evolution API pode ou nao retornar)

@@ -46,18 +46,18 @@ async function createInstance(instanceName, options = {}) {
     qrcode: true,
     webhook: {
       url: webhookUrl,
-      webhookByEvents: true,
+      webhookByEvents: false,
       events: [
-        'qrcode.updated',
-        'connection.update',
-        'messages.upsert',
-        'messages.update',
+        'QRCODE_UPDATED',
+        'CONNECTION_UPDATE',
+        'MESSAGES_UPSERT',
+        'MESSAGES_UPDATE',
       ],
     },
   };
 
   const { data } = await api.post('/instance/create', payload);
-  logger.info(`Instancia criada: ${instanceName} - resposta: ${JSON.stringify(data).substring(0, 500)}`);
+  logger.info(`Instancia criada: ${instanceName} - resposta COMPLETA: ${JSON.stringify(data).substring(0, 2000)}`);
   return data;
 }
 
@@ -101,11 +101,15 @@ async function setProxy(instanceName, proxyConfig) {
 
 /**
  * Busca QR Code para conectar uma instancia.
- * Tenta /instance/connect/ que na v2.2.3 retorna o QR diretamente.
+ * Tenta /instance/connect/ que na v2.2.3 dispara conexao.
+ * O QR pode vir na resposta direta OU via webhook (qrcode.updated).
  */
 async function getQrCode(instanceName) {
   try {
-    const res = await api.get(`/instance/connect/${instanceName}`);
+    // Etapa 1: Chama connect para disparar/manter a conexao
+    const connectUrl = `/instance/connect/${instanceName}`;
+    logger.info(`Chamando: GET ${config.evolution.url}${connectUrl}`);
+    const res = await api.get(connectUrl);
     const data = res.data;
     logger.info(`QR connect RAW ${instanceName}: ${JSON.stringify(data).substring(0, 800)}`);
 
@@ -117,8 +121,14 @@ async function getQrCode(instanceName) {
 
     // Extrai QR de qualquer formato (v2.x varia entre versoes)
     let base64 = data.base64 || data.qrcode?.base64 || null;
-    const code = data.code || data.qrcode?.code || null;
-    const pairingCode = data.pairingCode || data.qrcode?.pairingCode || null;
+    let code = data.code || data.qrcode?.code || null;
+    let pairingCode = data.pairingCode || data.qrcode?.pairingCode || null;
+
+    // v2.2.3 pode retornar {"count":0} no connect - QR vem via webhook
+    // Nesse caso, apenas logamos e retornamos null (webhook handler cuidara)
+    if (!base64 && !code && data.count !== undefined) {
+      logger.info(`Connect retornou count=${data.count} para ${instanceName} - QR sera entregue via webhook`);
+    }
 
     // Se temos o texto do QR mas nao a imagem, geramos a imagem
     if (!base64 && code) {
@@ -239,20 +249,36 @@ async function sendMedia(instanceName, number, mediaType, mediaUrl, caption = ''
  * Configura webhook para uma instancia.
  */
 async function setWebhook(instanceName, webhookUrl, events = []) {
-  const { data } = await api.post(`/webhook/set/${instanceName}`, {
+  const payload = {
     enabled: true,
     url: webhookUrl,
-    webhookByEvents: true,
+    webhookByEvents: false,
     events: events.length > 0 ? events : [
-      'messages.upsert',
-      'messages.update',
-      'connection.update',
-      'qrcode.updated',
+      'QRCODE_UPDATED',
+      'CONNECTION_UPDATE',
+      'MESSAGES_UPSERT',
+      'MESSAGES_UPDATE',
     ],
-  });
+  };
 
-  logger.info(`Webhook configurado para ${instanceName}: ${webhookUrl}`);
-  return data;
+  logger.info(`Configurando webhook para ${instanceName}: ${JSON.stringify(payload)}`);
+
+  try {
+    const { data } = await api.post(`/webhook/set/${instanceName}`, payload);
+    logger.info(`Webhook configurado para ${instanceName}: ${webhookUrl}`);
+    return data;
+  } catch (err) {
+    // Tenta formato alternativo (v2.2.3 pode usar estrutura diferente)
+    logger.warn(`Webhook set falhou (tentando formato alternativo): ${err.response?.status} - ${JSON.stringify(err.response?.data || {}).substring(0, 300)}`);
+    try {
+      const { data } = await api.put(`/webhook/set/${instanceName}`, payload);
+      logger.info(`Webhook configurado via PUT para ${instanceName}: ${webhookUrl}`);
+      return data;
+    } catch (err2) {
+      logger.warn(`Webhook set alternativo tambem falhou: ${err2.response?.status}`);
+      throw err;
+    }
+  }
 }
 
 /**

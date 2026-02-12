@@ -31,19 +31,28 @@ function getStoredQrCode(instanceName) {
 
 /**
  * POST /webhook/evolution
+ * POST /webhook/evolution/:eventType  (quando webhookByEvents=true)
  * Recebe eventos do Evolution API (configurado como webhook global).
  * Captura QR Codes e encaminha para N8N se configurado.
+ *
+ * Nota: Evolution API com webhookByEvents=true envia para
+ * /webhook/evolution/qrcode.updated, /webhook/evolution/connection.update etc.
  */
-router.post('/evolution', async (req, res) => {
+router.post(['/evolution', '/evolution/*'], async (req, res) => {
   try {
     const event = req.body;
-    const eventType = event.event || 'unknown';
-    const instanceName = event.instance || 'unknown';
+    // Detecta tipo do evento: do body OU do path (webhookByEvents)
+    const pathEvent = req.params[0] || null; // captura o wildcard
+    const eventType = event.event || pathEvent || 'unknown';
+    const instanceName = event.instance || event.data?.instance || 'unknown';
+
+    logger.info(`Webhook RAW recebido [${eventType}] de ${instanceName} (path: ${req.path}): ${JSON.stringify(event).substring(0, 500)}`);
 
     logger.info(`Webhook Evolution: ${eventType} de ${instanceName}`);
 
-    // Captura QR Code do evento qrcode.updated
-    if (eventType === 'qrcode.updated') {
+    // Captura QR Code do evento qrcode.updated (varios formatos possiveis)
+    const isQrEvent = eventType === 'qrcode.updated' || eventType === 'QRCODE_UPDATED' || eventType === 'qrcode-updated';
+    if (isQrEvent) {
       logger.info(`QR webhook FULL BODY ${instanceName}: ${JSON.stringify(event).substring(0, 1000)}`);
       const qrData = event.data || {};
       // Busca em todos os locais possiveis
@@ -60,7 +69,8 @@ router.post('/evolution', async (req, res) => {
     }
 
     // Atualiza status de conexao
-    if (eventType === 'connection.update') {
+    const isConnectionEvent = eventType === 'connection.update' || eventType === 'CONNECTION_UPDATE' || eventType === 'connection-update';
+    if (isConnectionEvent) {
       const state = event.data?.state || event.data?.status;
       logger.info(`Conexao atualizada ${instanceName}: ${state}`);
     }
