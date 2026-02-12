@@ -854,8 +854,15 @@
       closeModal('modal-create');
       document.getElementById('create-name').value = '';
 
-      // Show QR Code automatically
+      // Mostra QR Code que veio da criacao
       if (data.qrCode) {
+        currentQrInstance = name;
+        const display = document.getElementById('qr-display');
+        const src = data.qrCode.startsWith('data:') ? data.qrCode : 'data:image/png;base64,' + data.qrCode;
+        display.innerHTML = `<img src="${src}" alt="QR Code" />`;
+        document.getElementById('modal-qr').classList.add('active');
+      } else {
+        // Se nao veio, tenta buscar
         showQrCode(name);
       }
 

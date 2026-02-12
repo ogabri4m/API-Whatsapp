@@ -48,13 +48,28 @@ router.post('/', async (req, res) => {
     // 4. Registra no sistema anti-ban
     antibanService.registerInstance(instanceName);
 
-    // 5. Busca QR Code para conexao
-    let qrCode = null;
-    try {
-      qrCode = await evolutionService.getQrCode(instanceName);
-    } catch (err) {
-      logger.warn(`QR Code nao disponivel ainda para ${instanceName}`);
+    // 5. Extrai QR Code da resposta de criacao (Evolution API v2.2.3 retorna junto)
+    let qrBase64 = null;
+    if (instance.qrcode) {
+      // Formato: { qrcode: { base64: "...", pairingCode: "..." } }
+      qrBase64 = instance.qrcode.base64 || instance.qrcode;
+    } else if (instance.base64) {
+      qrBase64 = instance.base64;
     }
+
+    // Se nao veio na criacao, tenta buscar separado
+    if (!qrBase64) {
+      try {
+        // Espera 2 segundos para o QR ser gerado
+        await new Promise(r => setTimeout(r, 2000));
+        const qrData = await evolutionService.getQrCode(instanceName);
+        qrBase64 = qrData.base64 || null;
+      } catch (err) {
+        logger.warn(`QR Code nao disponivel ainda para ${instanceName}`);
+      }
+    }
+
+    logger.info(`QR Code para ${instanceName}: ${qrBase64 ? 'disponivel' : 'nao disponivel'}`);
 
     res.status(201).json({
       success: true,
@@ -74,7 +89,7 @@ router.post('/', async (req, res) => {
         os: `${fingerprint.os} ${fingerprint.osVersion}`,
         screen: `${fingerprint.screen.width}x${fingerprint.screen.height}`,
       },
-      qrCode: qrCode?.base64 || qrCode?.pairingCode || null,
+      qrCode: qrBase64,
     });
   } catch (err) {
     logger.error(`Erro ao criar instancia: ${err.message}`);
@@ -94,11 +109,13 @@ router.get('/', async (req, res) => {
     const proxies = proxyService.listProxies();
 
     const enriched = (instances || []).map((inst) => {
-      // Suporta multiplos formatos da Evolution API v2.x
-      const name = inst.instance?.instanceName || inst.instanceName || inst.name || 'unknown';
+      // v2.2.3 retorna { name, connectionStatus, ... } diretamente
+      const name = inst.name || inst.instance?.instanceName || inst.instanceName || 'unknown';
+      // v2.2.3 usa connectionStatus (open/close), versoes antigas usam state
+      const state = inst.connectionStatus || inst.instance?.status || inst.instance?.state || inst.state || inst.status || 'unknown';
       return {
         name,
-        state: inst.instance?.status || inst.instance?.state || inst.state || inst.status || 'unknown',
+        state,
         antiban: antibanStatus[name] || null,
         fingerprint: fingerprints[name] || null,
         proxy: proxies[name] || null,

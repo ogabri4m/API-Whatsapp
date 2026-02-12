@@ -56,8 +56,22 @@ async function createInstance(instanceName, options = {}) {
   }
 
   const { data } = await api.post('/instance/create', payload);
-  logger.info(`Instancia criada: ${instanceName}`);
+  logger.info(`Instancia criada: ${instanceName} - resposta: ${JSON.stringify(data).substring(0, 500)}`);
   return data;
+}
+
+/**
+ * Reinicia uma instancia para forcar reconexao.
+ */
+async function restartInstance(instanceName) {
+  try {
+    const { data } = await api.post(`/instance/restart/${instanceName}`, {});
+    logger.info(`Instancia reiniciada: ${instanceName}`);
+    return data;
+  } catch (err) {
+    logger.warn(`Restart falhou para ${instanceName}: ${err.message}`);
+    return null;
+  }
 }
 
 /**
@@ -88,25 +102,31 @@ async function setProxy(instanceName, proxyConfig) {
  * Busca QR Code para conectar uma instancia.
  */
 async function getQrCode(instanceName) {
-  // Evolution API v2.2.3 - tenta GET primeiro, depois POST
   let data;
 
+  // 1. Tenta GET /instance/connect primeiro
   try {
     const res = await api.get(`/instance/connect/${instanceName}`);
     data = res.data;
-    logger.info(`QR GET ${instanceName}: ${JSON.stringify(data).substring(0, 300)}`);
+    logger.info(`QR connect ${instanceName}: ${JSON.stringify(data).substring(0, 500)}`);
   } catch (err) {
-    logger.warn(`QR GET falhou ${instanceName}: ${err.response?.status} ${err.message}`);
+    logger.warn(`QR connect falhou ${instanceName}: ${err.response?.status}`);
   }
 
-  // Se GET retornou vazio/count:0, tenta POST (v2.2.3 pode usar POST)
+  // 2. Se retornou vazio/count:0, reinicia a instancia e tenta novamente
   if (!data || data.count === 0 || (!data.base64 && !data.qrcode && !data.code)) {
+    logger.info(`Reiniciando instancia ${instanceName} para gerar novo QR...`);
+    await restartInstance(instanceName);
+
+    // Aguarda 3 segundos para a instancia reiniciar
+    await new Promise(r => setTimeout(r, 3000));
+
     try {
-      const res = await api.post(`/instance/connect/${instanceName}`, {});
+      const res = await api.get(`/instance/connect/${instanceName}`);
       data = res.data;
-      logger.info(`QR POST ${instanceName}: ${JSON.stringify(data).substring(0, 300)}`);
+      logger.info(`QR apos restart ${instanceName}: ${JSON.stringify(data).substring(0, 500)}`);
     } catch (err) {
-      logger.warn(`QR POST falhou ${instanceName}: ${err.response?.status} ${err.message}`);
+      logger.warn(`QR apos restart falhou ${instanceName}: ${err.response?.status}`);
     }
   }
 
@@ -114,20 +134,12 @@ async function getQrCode(instanceName) {
     return { base64: null, pairingCode: null, code: null, instance: null };
   }
 
-  // Normaliza resposta
-  if (data.qrcode) {
-    return {
-      base64: data.qrcode.base64 || null,
-      pairingCode: data.qrcode.pairingCode || null,
-      code: data.qrcode.code || null,
-      instance: data.instance || null,
-    };
-  }
-
+  // Normaliza resposta - suporta multiplos formatos
+  const qr = data.qrcode || data;
   return {
-    base64: data.base64 || null,
-    pairingCode: data.pairingCode || null,
-    code: data.code || null,
+    base64: qr.base64 || null,
+    pairingCode: qr.pairingCode || null,
+    code: qr.code || null,
     instance: data.instance || null,
   };
 }
@@ -255,6 +267,7 @@ async function fetchInstance(instanceName) {
 
 module.exports = {
   createInstance,
+  restartInstance,
   setProxy,
   getQrCode,
   getConnectionState,
