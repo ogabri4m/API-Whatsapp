@@ -118,8 +118,18 @@ router.get('/', async (req, res) => {
  */
 router.get('/:name/qrcode', async (req, res) => {
   try {
-    const qrCode = await evolutionService.getQrCode(req.params.name);
-    res.json(qrCode);
+    const qrData = await evolutionService.getQrCode(req.params.name);
+
+    // Se instancia ja esta conectada
+    if (qrData.instance?.state === 'open' || qrData.instance?.status === 'open') {
+      return res.json({ connected: true, instance: qrData.instance });
+    }
+
+    res.json({
+      base64: qrData.base64 || null,
+      pairingCode: qrData.pairingCode || null,
+      code: qrData.code || null,
+    });
   } catch (err) {
     logger.error(`Erro ao buscar QR Code: ${err.message}`);
     res.status(500).json({ error: err.message });

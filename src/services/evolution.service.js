@@ -88,19 +88,28 @@ async function setProxy(instanceName, proxyConfig) {
  * Busca QR Code para conectar uma instancia.
  */
 async function getQrCode(instanceName) {
-  try {
-    const { data } = await api.get(`/instance/connect/${instanceName}`);
-    return data;
-  } catch (err) {
-    // Tenta formato alternativo da v2.x
-    if (err.response?.status === 404) {
-      const { data } = await api.get(`/instance/connect`, {
-        params: { instanceName },
-      });
-      return data;
-    }
-    throw err;
+  const { data } = await api.get(`/instance/connect/${instanceName}`);
+  logger.info(`QR Code response para ${instanceName}: ${JSON.stringify(data).substring(0, 200)}`);
+
+  // Normaliza resposta - Evolution API v2.x pode retornar em formatos diferentes
+  // Formato 1: { base64: "...", pairingCode: "..." }
+  // Formato 2: { qrcode: { base64: "...", pairingCode: "..." }, instance: {...} }
+  // Formato 3: { code: "...", base64: "..." }
+  if (data.qrcode) {
+    return {
+      base64: data.qrcode.base64 || null,
+      pairingCode: data.qrcode.pairingCode || null,
+      code: data.qrcode.code || null,
+      instance: data.instance || null,
+    };
   }
+
+  return {
+    base64: data.base64 || null,
+    pairingCode: data.pairingCode || null,
+    code: data.code || null,
+    instance: data.instance || null,
+  };
 }
 
 /**
