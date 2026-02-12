@@ -94,15 +94,16 @@ router.get('/', async (req, res) => {
     const proxies = proxyService.listProxies();
 
     const enriched = (instances || []).map((inst) => {
-      const name = inst.instance?.instanceName || inst.instanceName;
+      // Suporta multiplos formatos da Evolution API v2.x
+      const name = inst.instance?.instanceName || inst.instanceName || inst.name || 'unknown';
       return {
         name,
-        state: inst.instance?.state || inst.state || 'unknown',
+        state: inst.instance?.status || inst.instance?.state || inst.state || inst.status || 'unknown',
         antiban: antibanStatus[name] || null,
         fingerprint: fingerprints[name] || null,
         proxy: proxies[name] || null,
       };
-    });
+    }).filter(inst => inst.name !== 'unknown');
 
     res.json({ instances: enriched });
   } catch (err) {
@@ -190,10 +191,20 @@ router.post('/:name/reactivate', async (req, res) => {
  */
 router.delete('/:name', async (req, res) => {
   try {
-    await evolutionService.deleteInstance(req.params.name);
-    antibanService.unregisterInstance(req.params.name);
+    const name = req.params.name;
 
-    res.json({ success: true, message: `Instancia ${req.params.name} removida` });
+    // Limpa do middleware mesmo se falhar na Evolution API
+    try {
+      await evolutionService.deleteInstance(name);
+    } catch (err) {
+      logger.warn(`Falha ao remover ${name} da Evolution API: ${err.message}`);
+    }
+
+    antibanService.unregisterInstance(name);
+    fingerprintService.removeFingerprint(name);
+    proxyService.removeProxy(name);
+
+    res.json({ success: true, message: `Instancia ${name} removida` });
   } catch (err) {
     logger.error(`Erro ao remover instancia: ${err.message}`);
     res.status(500).json({ error: err.message });

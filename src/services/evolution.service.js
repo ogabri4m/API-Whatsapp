@@ -88,8 +88,19 @@ async function setProxy(instanceName, proxyConfig) {
  * Busca QR Code para conectar uma instancia.
  */
 async function getQrCode(instanceName) {
-  const { data } = await api.get(`/instance/connect/${instanceName}`);
-  return data;
+  try {
+    const { data } = await api.get(`/instance/connect/${instanceName}`);
+    return data;
+  } catch (err) {
+    // Tenta formato alternativo da v2.x
+    if (err.response?.status === 404) {
+      const { data } = await api.get(`/instance/connect`, {
+        params: { instanceName },
+      });
+      return data;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -105,16 +116,28 @@ async function getConnectionState(instanceName) {
  */
 async function listInstances() {
   const { data } = await api.get('/instance/fetchInstances');
-  return data;
+  // Normaliza formato - v2.x pode retornar array ou objeto
+  if (Array.isArray(data)) return data;
+  if (data?.instances) return data.instances;
+  return [];
 }
 
 /**
  * Deleta uma instancia.
  */
 async function deleteInstance(instanceName) {
-  const { data } = await api.delete(`/instance/delete/${instanceName}`);
-  logger.info(`Instancia deletada: ${instanceName}`);
-  return data;
+  try {
+    const { data } = await api.delete(`/instance/delete/${instanceName}`);
+    logger.info(`Instancia deletada: ${instanceName}`);
+    return data;
+  } catch (err) {
+    // Se instancia nao existe na Evolution API, ignora
+    if (err.response?.status === 404) {
+      logger.warn(`Instancia ${instanceName} nao encontrada na Evolution API (ja removida)`);
+      return { deleted: true };
+    }
+    throw err;
+  }
 }
 
 /**
