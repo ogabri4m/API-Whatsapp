@@ -88,13 +88,33 @@ async function setProxy(instanceName, proxyConfig) {
  * Busca QR Code para conectar uma instancia.
  */
 async function getQrCode(instanceName) {
-  const { data } = await api.get(`/instance/connect/${instanceName}`);
-  logger.info(`QR Code response para ${instanceName}: ${JSON.stringify(data).substring(0, 200)}`);
+  // Evolution API v2.2.3 - tenta GET primeiro, depois POST
+  let data;
 
-  // Normaliza resposta - Evolution API v2.x pode retornar em formatos diferentes
-  // Formato 1: { base64: "...", pairingCode: "..." }
-  // Formato 2: { qrcode: { base64: "...", pairingCode: "..." }, instance: {...} }
-  // Formato 3: { code: "...", base64: "..." }
+  try {
+    const res = await api.get(`/instance/connect/${instanceName}`);
+    data = res.data;
+    logger.info(`QR GET ${instanceName}: ${JSON.stringify(data).substring(0, 300)}`);
+  } catch (err) {
+    logger.warn(`QR GET falhou ${instanceName}: ${err.response?.status} ${err.message}`);
+  }
+
+  // Se GET retornou vazio/count:0, tenta POST (v2.2.3 pode usar POST)
+  if (!data || data.count === 0 || (!data.base64 && !data.qrcode && !data.code)) {
+    try {
+      const res = await api.post(`/instance/connect/${instanceName}`, {});
+      data = res.data;
+      logger.info(`QR POST ${instanceName}: ${JSON.stringify(data).substring(0, 300)}`);
+    } catch (err) {
+      logger.warn(`QR POST falhou ${instanceName}: ${err.response?.status} ${err.message}`);
+    }
+  }
+
+  if (!data || data.count === 0) {
+    return { base64: null, pairingCode: null, code: null, instance: null };
+  }
+
+  // Normaliza resposta
   if (data.qrcode) {
     return {
       base64: data.qrcode.base64 || null,
