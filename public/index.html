@@ -391,6 +391,27 @@
         <p>Visao geral do sistema anti-ban</p>
       </div>
 
+      <!-- Banner de config rapida - Evolution API Key -->
+      <div id="setup-banner" class="card" style="display:none;border-color:var(--blue);background:var(--blue-bg);margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:8px;color:var(--blue)">API Key da Evolution</div>
+            <p style="font-size:13px;color:var(--text);margin-bottom:8px">
+              Para usar o <strong>Evolution Manager</strong> (porta 8080), copie a API Key abaixo e cole no campo de autenticacao do Manager.
+            </p>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+              <code id="banner-apikey" style="background:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;font-family:monospace;color:var(--green);border:1px solid var(--border)">Carregando...</code>
+              <button class="btn btn-primary btn-sm" onclick="copyBannerApiKey()">Copiar Key</button>
+              <a id="banner-manager-link" href="#" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">Abrir Manager</a>
+            </div>
+            <p style="font-size:11px;color:var(--text-muted)">
+              No Manager: clique no cadeado/login e cole esta chave para autenticar.
+            </p>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="dismissBanner()" style="margin-left:16px">Fechar</button>
+        </div>
+      </div>
+
       <div class="stat-grid">
         <div class="stat-card">
           <div class="label">Instancias Ativas</div>
@@ -559,6 +580,34 @@
         <p>Configuracao da conexao com a API</p>
       </div>
 
+      <!-- Evolution API Key e Manager -->
+      <div class="card" id="card-evolution-config">
+        <div class="card-title">
+          Evolution API
+          <button class="btn btn-outline btn-sm" onclick="loadSystemConfig()">Atualizar</button>
+        </div>
+        <div class="form-group">
+          <label>API Key da Evolution (use no Manager)</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="cfg-evo-apikey" readonly style="font-family:monospace;font-size:13px;background:var(--bg)" />
+            <button class="btn btn-outline btn-sm" onclick="copyEvoApiKey()" style="white-space:nowrap">Copiar</button>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:6px">
+            Esta e a chave que voce precisa colar no Evolution Manager para autenticar.
+          </p>
+        </div>
+        <div class="form-group">
+          <label>Evolution Manager</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="cfg-evo-manager-url" readonly style="font-family:monospace;font-size:13px;background:var(--bg)" />
+            <a id="cfg-evo-manager-link" href="#" target="_blank" class="btn btn-primary btn-sm" style="white-space:nowrap;text-decoration:none">Abrir Manager</a>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:6px">
+            Use o Manager para ver instancias diretamente na Evolution API.
+          </p>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-title">Conexao do Dashboard</div>
         <div class="form-group">
@@ -566,11 +615,19 @@
           <input type="text" id="cfg-url" placeholder="http://localhost:3100" />
         </div>
         <div class="form-group">
-          <label>API Key</label>
-          <input type="password" id="cfg-apikey" placeholder="Sua API key" />
+          <label>API Key do Middleware</label>
+          <input type="password" id="cfg-apikey" placeholder="Sua API key do middleware" />
         </div>
         <button class="btn btn-primary" onclick="saveSettings()">Salvar</button>
         <button class="btn btn-outline" onclick="testConnection()" style="margin-left:8px">Testar Conexao</button>
+      </div>
+
+      <!-- Anti-Ban Config (carregado do servidor) -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-title">Configuracoes Anti-Ban (servidor)</div>
+        <div class="instance-details" id="antiban-config-display">
+          <div><span>Carregando...</span><span></span></div>
+        </div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -644,7 +701,45 @@
     document.getElementById('cfg-apikey').value = API_KEY;
     refreshDashboard();
     startAutoRefresh();
+    checkFirstRun();
   });
+
+  // Verifica primeiro acesso e mostra guia de configuracao
+  async function checkFirstRun() {
+    try {
+      const data = await api('GET', '/api/config');
+      if (data.evolution?.apiKey) {
+        localStorage.setItem('evo_api_key', data.evolution.apiKey);
+
+        // Mostra banner se nao foi dispensado antes
+        if (!localStorage.getItem('banner_dismissed')) {
+          const banner = document.getElementById('setup-banner');
+          const browserHost = window.location.hostname;
+          const managerUrl = `http://${browserHost}:8080/manager`;
+
+          document.getElementById('banner-apikey').textContent = data.evolution.apiKey;
+          document.getElementById('banner-manager-link').href = managerUrl;
+          banner.style.display = 'block';
+        }
+      }
+    } catch (err) {
+      // Silencioso no primeiro carregamento
+    }
+  }
+
+  function copyBannerApiKey() {
+    const key = document.getElementById('banner-apikey').textContent;
+    navigator.clipboard.writeText(key).then(() => {
+      toast('API Key copiada! Cole no Evolution Manager.', 'success');
+    }).catch(() => {
+      toast('Nao foi possivel copiar. Selecione manualmente.', 'error');
+    });
+  }
+
+  function dismissBanner() {
+    document.getElementById('setup-banner').style.display = 'none';
+    localStorage.setItem('banner_dismissed', '1');
+  }
 
   function startAutoRefresh() {
     if (refreshInterval) clearInterval(refreshInterval);
@@ -669,6 +764,7 @@
     if (name === 'messages') loadInstanceSelectors();
     if (name === 'queue') refreshQueue();
     if (name === 'dashboard') refreshDashboard();
+    if (name === 'settings') loadSystemConfig();
   }
 
   // ============================================================
@@ -1048,6 +1144,57 @@
     } catch (err) {
       toast(`Falha na conexao: ${err.message}`, 'error');
     }
+  }
+
+  // Carrega config do servidor (API Keys, Anti-Ban settings)
+  async function loadSystemConfig() {
+    try {
+      const data = await api('GET', '/api/config');
+
+      // Evolution API Key
+      if (data.evolution) {
+        document.getElementById('cfg-evo-apikey').value = data.evolution.apiKey || 'Nao configurada';
+
+        // Calcula URL do Manager baseado na URL atual do browser
+        const browserHost = window.location.hostname;
+        const managerUrl = `http://${browserHost}:8080/manager`;
+        document.getElementById('cfg-evo-manager-url').value = managerUrl;
+        document.getElementById('cfg-evo-manager-link').href = managerUrl;
+      }
+
+      // Anti-Ban config
+      if (data.antiban) {
+        const ab = data.antiban;
+        document.getElementById('antiban-config-display').innerHTML = `
+          <div><span>Delay entre msgs</span><span>${ab.delayMin/1000}s - ${ab.delayMax/1000}s</span></div>
+          <div><span>Tamanho do lote</span><span>${ab.batchSize} msgs</span></div>
+          <div><span>Warm-up</span><span>${ab.warmupHours}h (${ab.warmupDailyLimit} msgs/dia)</span></div>
+          <div><span>Limite diario</span><span>${ab.dailyLimit} msgs/instancia</span></div>
+          <div><span>Horario de envio</span><span>${ab.sendHourStart}h - ${ab.sendHourEnd}h</span></div>
+        `;
+      }
+    } catch (err) {
+      document.getElementById('cfg-evo-apikey').value = 'Erro ao carregar';
+      document.getElementById('antiban-config-display').innerHTML =
+        '<div><span style="color:var(--red)">Erro ao carregar configuracoes</span><span></span></div>';
+    }
+  }
+
+  function copyEvoApiKey() {
+    const key = document.getElementById('cfg-evo-apikey').value;
+    if (!key || key === 'Nao configurada' || key === 'Erro ao carregar') {
+      toast('Nenhuma API Key para copiar', 'error');
+      return;
+    }
+    navigator.clipboard.writeText(key).then(() => {
+      toast('API Key copiada! Cole no Evolution Manager.', 'success');
+    }).catch(() => {
+      // Fallback para navegadores sem clipboard API
+      const input = document.getElementById('cfg-evo-apikey');
+      input.select();
+      document.execCommand('copy');
+      toast('API Key copiada!', 'success');
+    });
   }
 </script>
 

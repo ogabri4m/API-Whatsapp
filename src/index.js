@@ -65,6 +65,31 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Configuracao do sistema (para o dashboard mostrar API Key e links)
+app.get('/api/config', (req, res) => {
+  res.json({
+    evolution: {
+      url: config.evolution.url,
+      apiKey: config.evolution.apiKey,
+      managerUrl: config.evolution.url.replace('://evolution-api:', '://localhost:').replace(':8080', ':8080/manager'),
+    },
+    middleware: {
+      port: config.server.port,
+      apiKey: config.server.apiKey,
+    },
+    antiban: {
+      delayMin: config.antiban.delayMin,
+      delayMax: config.antiban.delayMax,
+      batchSize: config.antiban.batchSize,
+      warmupHours: config.antiban.warmupHours,
+      warmupDailyLimit: config.antiban.warmupDailyLimit,
+      dailyLimit: config.antiban.dailyLimit,
+      sendHourStart: config.antiban.sendHourStart,
+      sendHourEnd: config.antiban.sendHourEnd,
+    },
+  });
+});
+
 // Dashboard - status geral do sistema
 app.get('/api/dashboard', async (req, res) => {
   try {
