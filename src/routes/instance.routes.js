@@ -11,6 +11,7 @@ const evolutionService = require('../services/evolution.service');
 const proxyService = require('../services/proxy.service');
 const fingerprintService = require('../services/fingerprint.service');
 const antibanService = require('../services/antiban.service');
+const { getStoredQrCode } = require('./webhook.routes');
 const logger = require('../utils/logger');
 
 const router = Router();
@@ -135,17 +136,42 @@ router.get('/', async (req, res) => {
  */
 router.get('/:name/qrcode', async (req, res) => {
   try {
-    const qrData = await evolutionService.getQrCode(req.params.name);
+    const name = req.params.name;
+
+    // 1. Verifica se temos QR Code armazenado do webhook (mais confiavel)
+    const stored = getStoredQrCode(name);
+    if (stored && stored.base64) {
+      logger.info(`QR Code do webhook store para ${name}`);
+      return res.json({
+        base64: stored.base64,
+        pairingCode: stored.pairingCode || null,
+        code: stored.code || null,
+      });
+    }
+
+    // 2. Tenta buscar direto da Evolution API
+    const qrData = await evolutionService.getQrCode(name);
 
     // Se instancia ja esta conectada
     if (qrData.instance?.state === 'open' || qrData.instance?.status === 'open') {
       return res.json({ connected: true, instance: qrData.instance });
     }
 
+    // Se tem dados do QR
+    if (qrData.base64 || qrData.code || qrData.pairingCode) {
+      return res.json({
+        base64: qrData.base64 || null,
+        pairingCode: qrData.pairingCode || null,
+        code: qrData.code || null,
+      });
+    }
+
+    // 3. Nenhum QR disponivel - pede para aguardar webhook
     res.json({
-      base64: qrData.base64 || null,
-      pairingCode: qrData.pairingCode || null,
-      code: qrData.code || null,
+      base64: null,
+      pairingCode: null,
+      code: null,
+      message: 'QR Code sendo gerado. Clique Atualizar QR em 3-5 segundos.',
     });
   } catch (err) {
     logger.error(`Erro ao buscar QR Code: ${err.message}`);

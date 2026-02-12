@@ -12,10 +12,27 @@ const logger = require('../utils/logger');
 
 const router = Router();
 
+// Armazena QR Codes recebidos via webhook (em memoria)
+const qrCodeStore = {};
+
+/**
+ * Retorna o QR Code armazenado para uma instancia.
+ */
+function getStoredQrCode(instanceName) {
+  const stored = qrCodeStore[instanceName];
+  if (!stored) return null;
+  // QR Code expira em 60 segundos
+  if (Date.now() - stored.timestamp > 60000) {
+    delete qrCodeStore[instanceName];
+    return null;
+  }
+  return stored;
+}
+
 /**
  * POST /webhook/evolution
  * Recebe eventos do Evolution API (configurado como webhook global).
- * Encaminha para N8N se configurado.
+ * Captura QR Codes e encaminha para N8N se configurado.
  */
 router.post('/evolution', async (req, res) => {
   try {
@@ -24,6 +41,24 @@ router.post('/evolution', async (req, res) => {
     const instanceName = event.instance || 'unknown';
 
     logger.info(`Webhook Evolution: ${eventType} de ${instanceName}`);
+
+    // Captura QR Code do evento qrcode.updated
+    if (eventType === 'qrcode.updated') {
+      const qrData = event.data || {};
+      logger.info(`QR Code recebido via webhook para ${instanceName}: base64=${qrData.qrcode?.base64 ? 'SIM' : 'NAO'}`);
+      qrCodeStore[instanceName] = {
+        base64: qrData.qrcode?.base64 || qrData.base64 || null,
+        pairingCode: qrData.qrcode?.pairingCode || qrData.pairingCode || null,
+        code: qrData.qrcode?.code || qrData.code || null,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Atualiza status de conexao
+    if (eventType === 'connection.update') {
+      const state = event.data?.state || event.data?.status;
+      logger.info(`Conexao atualizada ${instanceName}: ${state}`);
+    }
 
     // Encaminha para N8N se configurado
     if (config.n8n.webhookUrl) {
@@ -152,3 +187,4 @@ router.post('/n8n/send-batch', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getStoredQrCode = getStoredQrCode;

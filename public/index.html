@@ -854,16 +854,17 @@
       closeModal('modal-create');
       document.getElementById('create-name').value = '';
 
-      // Mostra QR Code que veio da criacao
-      if (data.qrCode) {
+      // Mostra QR Code - espera webhook receber (3-5 segundos)
+      if (data.qrCode && typeof data.qrCode === 'string' && data.qrCode.length > 50) {
         currentQrInstance = name;
         const display = document.getElementById('qr-display');
         const src = data.qrCode.startsWith('data:') ? data.qrCode : 'data:image/png;base64,' + data.qrCode;
         display.innerHTML = `<img src="${src}" alt="QR Code" />`;
         document.getElementById('modal-qr').classList.add('active');
       } else {
-        // Se nao veio, tenta buscar
-        showQrCode(name);
+        // QR Code e gerado via webhook, espera 4 segundos e busca
+        toast('Gerando QR Code... aguarde', 'info');
+        setTimeout(() => showQrCode(name), 4000);
       }
 
       loadInstances();
@@ -906,8 +907,11 @@
           <p style="color:var(--text-muted);margin-top:8px;font-size:13px">Use este codigo de emparelhamento</p>
         </div>`;
       } else {
-        display.innerHTML = `<p style="color:var(--text-muted)">QR Code nao disponivel. Clique "Atualizar QR" em alguns segundos.</p>
-        <p style="color:var(--text-muted);font-size:11px;margin-top:8px">Debug: ${JSON.stringify(data)}</p>`;
+        display.innerHTML = `<div style="text-align:center">
+          <p style="color:var(--yellow);font-size:14px;margin-bottom:12px">QR Code sendo gerado...</p>
+          <p style="color:var(--text-muted);font-size:13px">Clique <strong>"Atualizar QR"</strong> em 3-5 segundos.</p>
+          <p style="color:var(--text-muted);font-size:11px;margin-top:12px">O QR Code e gerado de forma assincrona pela Evolution API.</p>
+        </div>`;
       }
     } catch (err) {
       display.innerHTML = `<p style="color:var(--red)">Erro: ${err.message}</p>`;
