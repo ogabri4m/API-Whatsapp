@@ -35,10 +35,8 @@ router.post('/', async (req, res) => {
     // 1. Gera fingerprint unico
     const fingerprint = fingerprintService.assignFingerprint(instanceName);
 
-    // 2. Cria instancia no Evolution API
-    const instance = await evolutionService.createInstance(instanceName, {
-      browserInfo: fingerprint.baileysBrowser,
-    });
+    // 2. Cria instancia no Evolution API (payload minimo)
+    const instance = await evolutionService.createInstance(instanceName);
 
     // 3. Atribui proxy residencial
     const proxy = proxyService.assignProxy(instanceName);
@@ -49,28 +47,8 @@ router.post('/', async (req, res) => {
     // 4. Registra no sistema anti-ban
     antibanService.registerInstance(instanceName);
 
-    // 5. Extrai QR Code da resposta de criacao (Evolution API v2.2.3 retorna junto)
-    let qrBase64 = null;
-    if (instance.qrcode) {
-      // Formato: { qrcode: { base64: "...", pairingCode: "..." } }
-      qrBase64 = instance.qrcode.base64 || instance.qrcode;
-    } else if (instance.base64) {
-      qrBase64 = instance.base64;
-    }
-
-    // Se nao veio na criacao, tenta buscar separado
-    if (!qrBase64) {
-      try {
-        // Espera 2 segundos para o QR ser gerado
-        await new Promise(r => setTimeout(r, 2000));
-        const qrData = await evolutionService.getQrCode(instanceName);
-        qrBase64 = qrData.base64 || null;
-      } catch (err) {
-        logger.warn(`QR Code nao disponivel ainda para ${instanceName}`);
-      }
-    }
-
-    logger.info(`QR Code para ${instanceName}: ${qrBase64 ? 'disponivel' : 'nao disponivel'}`);
+    // QR Code sera gerado via webhook (qrcode.updated) apos a criacao
+    logger.info(`Instancia ${instanceName} criada. QR Code sera recebido via webhook.`);
 
     res.status(201).json({
       success: true,
@@ -90,7 +68,7 @@ router.post('/', async (req, res) => {
         os: `${fingerprint.os} ${fingerprint.osVersion}`,
         screen: `${fingerprint.screen.width}x${fingerprint.screen.height}`,
       },
-      qrCode: qrBase64,
+      qrCode: null, // Vem via webhook em 3-5 segundos
     });
   } catch (err) {
     logger.error(`Erro ao criar instancia: ${err.message}`);

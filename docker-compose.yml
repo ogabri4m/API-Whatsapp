@@ -22,7 +22,7 @@ services:
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://redis:6379
       - CACHE_LOCAL_ENABLED=false
-      - LOG_LEVEL=WARN
+      - LOG_LEVEL=DEBUG
       - DEL_INSTANCE=false
       - PROVIDER_ENABLED=false
       - WEBHOOK_GLOBAL_ENABLED=true

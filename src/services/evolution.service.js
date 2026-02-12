@@ -37,23 +37,12 @@ api.interceptors.response.use(
  * @param {object} options - Opcoes adicionais (webhook, fingerprint)
  */
 async function createInstance(instanceName, options = {}) {
+  // Payload minimo para Evolution API v2.2.3
   const payload = {
     instanceName,
     integration: 'WHATSAPP-BAILEYS',
     qrcode: true,
-    rejectCall: false,
-    msgCall: '',
-    groupsIgnore: true,
-    alwaysOnline: false,
-    readMessages: false,
-    readStatus: false,
-    syncFullHistory: false,
   };
-
-  // Se browser fingerprint fornecido, adiciona ao payload
-  if (options.browserInfo) {
-    payload.browserInfo = options.browserInfo;
-  }
 
   const { data } = await api.post('/instance/create', payload);
   logger.info(`Instancia criada: ${instanceName} - resposta: ${JSON.stringify(data).substring(0, 500)}`);
@@ -102,46 +91,30 @@ async function setProxy(instanceName, proxyConfig) {
  * Busca QR Code para conectar uma instancia.
  */
 async function getQrCode(instanceName) {
-  let data;
-
-  // 1. Tenta GET /instance/connect primeiro
+  // Apenas chama GET /instance/connect para iniciar conexao
+  // O QR Code real vem via webhook (qrcode.updated) e fica no store
   try {
     const res = await api.get(`/instance/connect/${instanceName}`);
-    data = res.data;
+    const data = res.data;
     logger.info(`QR connect ${instanceName}: ${JSON.stringify(data).substring(0, 500)}`);
+
+    // Se veio QR Code direto na resposta
+    const qr = data.qrcode || data;
+    if (qr.base64 || qr.code || qr.pairingCode) {
+      return {
+        base64: qr.base64 || null,
+        pairingCode: qr.pairingCode || null,
+        code: qr.code || null,
+        instance: data.instance || null,
+      };
+    }
   } catch (err) {
     logger.warn(`QR connect falhou ${instanceName}: ${err.response?.status}`);
   }
 
-  // 2. Se retornou vazio/count:0, reinicia a instancia e tenta novamente
-  if (!data || data.count === 0 || (!data.base64 && !data.qrcode && !data.code)) {
-    logger.info(`Reiniciando instancia ${instanceName} para gerar novo QR...`);
-    await restartInstance(instanceName);
-
-    // Aguarda 3 segundos para a instancia reiniciar
-    await new Promise(r => setTimeout(r, 3000));
-
-    try {
-      const res = await api.get(`/instance/connect/${instanceName}`);
-      data = res.data;
-      logger.info(`QR apos restart ${instanceName}: ${JSON.stringify(data).substring(0, 500)}`);
-    } catch (err) {
-      logger.warn(`QR apos restart falhou ${instanceName}: ${err.response?.status}`);
-    }
-  }
-
-  if (!data || data.count === 0) {
-    return { base64: null, pairingCode: null, code: null, instance: null };
-  }
-
-  // Normaliza resposta - suporta multiplos formatos
-  const qr = data.qrcode || data;
-  return {
-    base64: qr.base64 || null,
-    pairingCode: qr.pairingCode || null,
-    code: qr.code || null,
-    instance: data.instance || null,
-  };
+  // QR nao disponivel na resposta REST (normal na v2.2.3)
+  // O QR Code sera entregue via webhook qrcode.updated
+  return { base64: null, pairingCode: null, code: null, instance: null };
 }
 
 /**
