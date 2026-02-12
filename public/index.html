@@ -660,6 +660,11 @@
         <label>Nome da Instancia</label>
         <input type="text" id="create-name" placeholder="whats01" required pattern="[a-zA-Z0-9_-]+" title="Apenas letras, numeros, - e _" />
       </div>
+      <div class="form-group">
+        <label>Numero WhatsApp (opcional, com DDI)</label>
+        <input type="text" id="create-number" placeholder="5511999999999" pattern="[0-9]*" title="Apenas numeros" />
+        <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Numero do WhatsApp que sera conectado. Ex: 5511999999999</p>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
         <button type="button" class="btn btn-outline" onclick="closeModal('modal-create')">Cancelar</button>
         <button type="submit" class="btn btn-primary" id="btn-create">Criar Instancia</button>
@@ -959,16 +964,20 @@
     e.preventDefault();
     const name = document.getElementById('create-name').value.trim();
     if (!name) return;
+    const number = document.getElementById('create-number').value.trim() || undefined;
 
     const btn = document.getElementById('btn-create');
     btn.disabled = true;
     btn.textContent = 'Criando...';
 
     try {
-      const data = await api('POST', '/api/instances', { name });
+      const body = { name };
+      if (number) body.number = number;
+      const data = await api('POST', '/api/instances', body);
       toast(`Instancia "${name}" criada com sucesso!`, 'success');
       closeModal('modal-create');
       document.getElementById('create-name').value = '';
+      document.getElementById('create-number').value = '';
 
       // Mostra QR Code imediatamente se veio na resposta, senao busca direto
       if (data.qrCode && typeof data.qrCode === 'string' && data.qrCode.length > 50) {
@@ -1027,6 +1036,20 @@
           qrAutoRefresh = null;
           const src = data.base64.startsWith('data:') ? data.base64 : 'data:image/png;base64,' + data.base64;
           display.innerHTML = `<img src="${src}" alt="QR Code" />`;
+        } else if (data.code) {
+          clearInterval(qrAutoRefresh);
+          qrAutoRefresh = null;
+          display.innerHTML = `<div style="text-align:center">
+            <p style="color:var(--text-muted);font-size:13px;margin-bottom:10px">Codigo QR (copie para um gerador):</p>
+            <p style="font-size:10px;word-break:break-all;background:var(--bg);padding:12px;border-radius:8px;color:var(--text)">${data.code}</p>
+          </div>`;
+        } else if (data.pairingCode) {
+          clearInterval(qrAutoRefresh);
+          qrAutoRefresh = null;
+          display.innerHTML = `<div style="text-align:center">
+            <p style="font-size:28px;font-weight:700;letter-spacing:4px;color:var(--green)">${data.pairingCode}</p>
+            <p style="color:var(--text-muted);margin-top:8px;font-size:13px">Use este codigo de emparelhamento</p>
+          </div>`;
         }
       } catch (e) { /* ignora erros de polling */ }
     }, 2000);

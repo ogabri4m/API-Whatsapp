@@ -26,7 +26,7 @@ const router = Router();
  */
 router.post('/', async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, number } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Campo "name" obrigatorio' });
     }
@@ -36,8 +36,12 @@ router.post('/', async (req, res) => {
     // 1. Gera fingerprint unico
     const fingerprint = fingerprintService.assignFingerprint(instanceName);
 
-    // 2. Cria instancia no Evolution API (payload minimo)
-    const instance = await evolutionService.createInstance(instanceName);
+    // 2. Cria instancia no Evolution API
+    const createOptions = {};
+    if (number) {
+      createOptions.number = number.replace(/[^0-9]/g, '');
+    }
+    const instance = await evolutionService.createInstance(instanceName, createOptions);
 
     // 3. Atribui proxy residencial
     const proxy = proxyService.assignProxy(instanceName);
@@ -52,7 +56,7 @@ router.post('/', async (req, res) => {
     try {
       await evolutionService.setWebhook(instanceName,
         'http://anti-ban-middleware:3100/webhook/evolution',
-        ['QRCODE_UPDATED', 'CONNECTION_UPDATE', 'MESSAGES_UPSERT', 'MESSAGES_UPDATE']
+        ['qrcode.updated', 'connection.update', 'messages.upsert', 'messages.update']
       );
       logger.info(`Webhook per-instance configurado para ${instanceName}`);
     } catch (webhookErr) {

@@ -48,13 +48,20 @@ async function createInstance(instanceName, options = {}) {
       url: webhookUrl,
       webhookByEvents: false,
       events: [
-        'QRCODE_UPDATED',
-        'CONNECTION_UPDATE',
-        'MESSAGES_UPSERT',
-        'MESSAGES_UPDATE',
+        'qrcode.updated',
+        'connection.update',
+        'messages.upsert',
+        'messages.update',
       ],
     },
   };
+
+  // Numero do WhatsApp (opcional - pode ajudar geracao do QR em v2.2.3)
+  if (options.number) {
+    payload.number = options.number;
+  }
+
+  logger.info(`Criando instancia ${instanceName} - payload: ${JSON.stringify(payload)}`);
 
   const { data } = await api.post('/instance/create', payload);
   logger.info(`Instancia criada: ${instanceName} - resposta COMPLETA: ${JSON.stringify(data).substring(0, 2000)}`);
@@ -254,10 +261,10 @@ async function setWebhook(instanceName, webhookUrl, events = []) {
     url: webhookUrl,
     webhookByEvents: false,
     events: events.length > 0 ? events : [
-      'QRCODE_UPDATED',
-      'CONNECTION_UPDATE',
-      'MESSAGES_UPSERT',
-      'MESSAGES_UPDATE',
+      'qrcode.updated',
+      'connection.update',
+      'messages.upsert',
+      'messages.update',
     ],
   };
 
