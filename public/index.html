@@ -692,6 +692,7 @@
   let API_KEY = localStorage.getItem('api_key') || '';
   let currentQrInstance = '';
   let refreshInterval = null;
+  let qrAutoRefresh = null;
 
   // ============================================================
   // INIT
@@ -800,11 +801,25 @@
   // MODAL
   // ============================================================
   function openCreateModal() { document.getElementById('modal-create').classList.add('active'); }
-  function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+    if (id === 'modal-qr' && qrAutoRefresh) {
+      clearInterval(qrAutoRefresh);
+      qrAutoRefresh = null;
+    }
+  }
 
   // Close modals on overlay click
   document.querySelectorAll('.modal-overlay').forEach(o => {
-    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); });
+    o.addEventListener('click', e => {
+      if (e.target === o) {
+        o.classList.remove('active');
+        if (o.id === 'modal-qr' && qrAutoRefresh) {
+          clearInterval(qrAutoRefresh);
+          qrAutoRefresh = null;
+        }
+      }
+    });
   });
 
   // ============================================================
@@ -973,6 +988,37 @@
     }
   }
 
+  function startQrAutoRefresh(name) {
+    if (qrAutoRefresh) clearInterval(qrAutoRefresh);
+    let attempts = 0;
+    qrAutoRefresh = setInterval(async () => {
+      attempts++;
+      // Para apos 20 tentativas (40 segundos - QR expira em 60s)
+      if (attempts > 20 || !document.getElementById('modal-qr').classList.contains('active')) {
+        clearInterval(qrAutoRefresh);
+        qrAutoRefresh = null;
+        return;
+      }
+      try {
+        const data = await api('GET', `/api/instances/${name}/qrcode`);
+        const display = document.getElementById('qr-display');
+        if (data.connected) {
+          clearInterval(qrAutoRefresh);
+          qrAutoRefresh = null;
+          display.innerHTML = `<div style="text-align:center">
+            <span class="badge badge-green" style="font-size:16px;padding:8px 20px">Ja conectado!</span>
+          </div>`;
+          loadInstances();
+        } else if (data.base64) {
+          clearInterval(qrAutoRefresh);
+          qrAutoRefresh = null;
+          const src = data.base64.startsWith('data:') ? data.base64 : 'data:image/png;base64,' + data.base64;
+          display.innerHTML = `<img src="${src}" alt="QR Code" />`;
+        }
+      } catch (e) { /* ignora erros de polling */ }
+    }, 2000);
+  }
+
   async function showQrCode(name) {
     currentQrInstance = name;
     const display = document.getElementById('qr-display');
@@ -988,11 +1034,9 @@
           <span class="badge badge-green" style="font-size:16px;padding:8px 20px">Ja conectado!</span>
         </div>`;
       } else if (data.base64) {
-        // Se base64 ja tem o prefixo data:image, usa direto
         const src = data.base64.startsWith('data:') ? data.base64 : 'data:image/png;base64,' + data.base64;
         display.innerHTML = `<img src="${src}" alt="QR Code" />`;
       } else if (data.code) {
-        // Codigo texto do QR - mostra como texto
         display.innerHTML = `<div style="text-align:center">
           <p style="color:var(--text-muted);font-size:13px;margin-bottom:10px">Codigo QR (copie para um gerador de QR):</p>
           <p style="font-size:10px;word-break:break-all;background:var(--bg);padding:12px;border-radius:8px;color:var(--text)">${data.code}</p>
@@ -1003,11 +1047,12 @@
           <p style="color:var(--text-muted);margin-top:8px;font-size:13px">Use este codigo de emparelhamento</p>
         </div>`;
       } else {
+        // QR nao disponivel ainda - inicia auto-refresh
         display.innerHTML = `<div style="text-align:center">
-          <p style="color:var(--yellow);font-size:14px;margin-bottom:12px">QR Code sendo gerado...</p>
-          <p style="color:var(--text-muted);font-size:13px">Clique <strong>"Atualizar QR"</strong> em 3-5 segundos.</p>
-          <p style="color:var(--text-muted);font-size:11px;margin-top:12px">O QR Code e gerado de forma assincrona pela Evolution API.</p>
+          <p style="color:var(--yellow);font-size:14px;margin-bottom:12px">Buscando QR Code...</p>
+          <p style="color:var(--text-muted);font-size:13px">Atualizando automaticamente a cada 2 segundos...</p>
         </div>`;
+        startQrAutoRefresh(name);
       }
     } catch (err) {
       display.innerHTML = `<p style="color:var(--red)">Erro: ${err.message}</p>`;

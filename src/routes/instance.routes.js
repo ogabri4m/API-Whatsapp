@@ -11,7 +11,7 @@ const evolutionService = require('../services/evolution.service');
 const proxyService = require('../services/proxy.service');
 const fingerprintService = require('../services/fingerprint.service');
 const antibanService = require('../services/antiban.service');
-const { getStoredQrCode } = require('./webhook.routes');
+const { getStoredQrCode, storeQrCode } = require('./webhook.routes');
 const logger = require('../utils/logger');
 
 const router = Router();
@@ -47,8 +47,17 @@ router.post('/', async (req, res) => {
     // 4. Registra no sistema anti-ban
     antibanService.registerInstance(instanceName);
 
-    // QR Code sera gerado via webhook (qrcode.updated) apos a criacao
-    logger.info(`Instancia ${instanceName} criada. QR Code sera recebido via webhook.`);
+    // Extrai QR Code da resposta do create (Evolution API retorna quando qrcode: true)
+    const qrBase64 = instance.qrcode?.base64 || instance.base64 || null;
+    const qrCodeText = instance.qrcode?.code || instance.code || null;
+    const qrPairingCode = instance.qrcode?.pairingCode || instance.pairingCode || null;
+
+    // Salva no store para recuperacao posterior
+    if (qrBase64 || qrCodeText) {
+      storeQrCode(instanceName, { base64: qrBase64, code: qrCodeText, pairingCode: qrPairingCode });
+    }
+
+    logger.info(`Instancia ${instanceName} criada. QR base64=${qrBase64 ? 'SIM' : 'NAO'}`);
 
     res.status(201).json({
       success: true,
@@ -68,7 +77,7 @@ router.post('/', async (req, res) => {
         os: `${fingerprint.os} ${fingerprint.osVersion}`,
         screen: `${fingerprint.screen.width}x${fingerprint.screen.height}`,
       },
-      qrCode: null, // Vem via webhook em 3-5 segundos
+      qrCode: qrBase64,
     });
   } catch (err) {
     logger.error(`Erro ao criar instancia: ${err.message}`);

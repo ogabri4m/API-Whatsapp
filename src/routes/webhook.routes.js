@@ -188,3 +188,11 @@ router.post('/n8n/send-batch', async (req, res) => {
 
 module.exports = router;
 module.exports.getStoredQrCode = getStoredQrCode;
+module.exports.storeQrCode = function storeQrCode(instanceName, data) {
+  qrCodeStore[instanceName] = {
+    base64: data.base64 || null,
+    pairingCode: data.pairingCode || null,
+    code: data.code || null,
+    timestamp: Date.now(),
+  };
+};

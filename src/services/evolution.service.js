@@ -89,32 +89,35 @@ async function setProxy(instanceName, proxyConfig) {
 
 /**
  * Busca QR Code para conectar uma instancia.
+ * Tenta /instance/connect/ que na v2.2.3 retorna o QR diretamente.
  */
 async function getQrCode(instanceName) {
-  // Apenas chama GET /instance/connect para iniciar conexao
-  // O QR Code real vem via webhook (qrcode.updated) e fica no store
   try {
     const res = await api.get(`/instance/connect/${instanceName}`);
     const data = res.data;
     logger.info(`QR connect ${instanceName}: ${JSON.stringify(data).substring(0, 500)}`);
 
-    // Se veio QR Code direto na resposta
-    const qr = data.qrcode || data;
-    if (qr.base64 || qr.code || qr.pairingCode) {
-      return {
-        base64: qr.base64 || null,
-        pairingCode: qr.pairingCode || null,
-        code: qr.code || null,
-        instance: data.instance || null,
-      };
+    // Verifica se ja esta conectado (varios formatos de resposta)
+    const state = data.instance?.state || data.instance?.status || data.state || data.status;
+    if (state === 'open') {
+      return { base64: null, code: null, pairingCode: null, instance: data.instance || data };
     }
-  } catch (err) {
-    logger.warn(`QR connect falhou ${instanceName}: ${err.response?.status}`);
-  }
 
-  // QR nao disponivel na resposta REST (normal na v2.2.3)
-  // O QR Code sera entregue via webhook qrcode.updated
-  return { base64: null, pairingCode: null, code: null, instance: null };
+    // Extrai QR de qualquer formato (v2.x varia entre versoes)
+    const base64 = data.base64 || data.qrcode?.base64 || null;
+    const code = data.code || data.qrcode?.code || null;
+    const pairingCode = data.pairingCode || data.qrcode?.pairingCode || null;
+
+    return {
+      base64,
+      code,
+      pairingCode,
+      instance: data.instance || null,
+    };
+  } catch (err) {
+    logger.warn(`QR connect falhou ${instanceName}: ${err.response?.status} - ${err.response?.data ? JSON.stringify(err.response.data).substring(0, 200) : err.message}`);
+    return { base64: null, pairingCode: null, code: null, instance: null };
+  }
 }
 
 /**
