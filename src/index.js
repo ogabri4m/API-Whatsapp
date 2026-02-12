@@ -1,0 +1,95 @@
+/**
+ * WhatsApp Anti-Ban Middleware
+ *
+ * Servidor principal que orquestra:
+ * - Evolution API (motor WhatsApp)
+ * - Proxy residencial brasileiro rotativo
+ * - Fingerprint de navegador randomizado por instancia
+ * - Fila de mensagens com timing humanizado
+ * - Sistema anti-ban com warm-up e limites
+ * - Integracao N8N via webhooks
+ *
+ * Arquitetura:
+ *   N8N → Middleware (porta 3100) → Evolution API (porta 8080) → WhatsApp
+ *                ↓
+ *         Proxy Residencial BR
+ *         Fingerprint Aleatorio
+ *         Delays Humanizados
+ */
+const express = require('express');
+const cors = require('cors');
+const config = require('./config');
+const logger = require('./utils/logger');
+
+// Rotas
+const instanceRoutes = require('./routes/instance.routes');
+const messageRoutes = require('./routes/message.routes');
+const webhookRoutes = require('./routes/webhook.routes');
+
+// Servicos
+const queueService = require('./services/queue.service');
+const antibanService = require('./services/antiban.service');
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+// Autenticacao simples por API key
+app.use('/api', (req, res, next) => {
+  if (!config.server.apiKey) return next();
+
+  const key = req.headers['x-api-key'] || req.query.apikey;
+  if (key !== config.server.apiKey) {
+    return res.status(401).json({ error: 'API key invalida' });
+  }
+  next();
+});
+
+// Rotas da API
+app.use('/api/instances', instanceRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/webhook', webhookRoutes);
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'whatsapp-anti-ban-middleware',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Dashboard - status geral do sistema
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const queueStats = await queueService.getQueueStats();
+    const antibanStatus = antibanService.getStatus();
+    const withinHours = antibanService.isWithinSendingHours();
+
+    res.json({
+      system: {
+        withinSendingHours: withinHours,
+        sendingWindow: `${config.antiban.sendHourStart}h - ${config.antiban.sendHourEnd}h`,
+      },
+      instances: antibanStatus,
+      queue: queueStats,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Inicia servidor
+app.listen(config.server.port, () => {
+  logger.info(`Anti-Ban Middleware rodando na porta ${config.server.port}`);
+  logger.info(`Evolution API: ${config.evolution.url}`);
+  logger.info(`Proxy provider: ${config.proxy.provider}`);
+  logger.info(`Horario de envio: ${config.antiban.sendHourStart}h - ${config.antiban.sendHourEnd}h`);
+  logger.info(`Warm-up: ${config.antiban.warmupHours}h | Limite diario: ${config.antiban.dailyLimit}`);
+
+  // Inicia worker da fila de mensagens
+  queueService.startWorker();
+  logger.info('Worker de mensagens iniciado');
+});

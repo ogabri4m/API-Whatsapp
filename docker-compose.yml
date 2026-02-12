@@ -1,0 +1,99 @@
+version: "3.8"
+
+services:
+  # =============================================
+  # Evolution API - Motor WhatsApp (Baileys)
+  # =============================================
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    container_name: evolution-api
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
+      - DATABASE_PROVIDER=mongodb
+      - DATABASE_CONNECTION_URI=${MONGO_URI}
+      - DATABASE_CONNECTION_DB_PREFIX_NAME=evo_
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      - DATABASE_SAVE_MESSAGE_UPDATE=true
+      - DATABASE_SAVE_DATA_CONTACTS=true
+      - DATABASE_SAVE_DATA_CHATS=true
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://${REDIS_HOST}:${REDIS_PORT}
+      - CACHE_LOCAL_ENABLED=false
+      - LOG_LEVEL=WARN
+      - DEL_INSTANCE=false
+      - PROVIDER_ENABLED=false
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_URL=http://anti-ban-middleware:3100/webhook/evolution
+      - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=true
+      - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
+      - WEBHOOK_EVENTS_MESSAGES_UPDATE=true
+      - WEBHOOK_EVENTS_CONNECTION_UPDATE=true
+      - WEBHOOK_EVENTS_QRCODE_UPDATED=true
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - whatsapp-net
+    volumes:
+      - evolution_instances:/evolution/instances
+
+  # =============================================
+  # Anti-Ban Middleware - Nosso serviço customizado
+  # =============================================
+  anti-ban-middleware:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: anti-ban-middleware
+    restart: always
+    ports:
+      - "3100:3100"
+    env_file:
+      - .env
+    depends_on:
+      - evolution-api
+      - redis
+    networks:
+      - whatsapp-net
+
+  # =============================================
+  # MongoDB - Banco de dados do Evolution API
+  # =============================================
+  mongodb:
+    image: mongo:7
+    container_name: mongodb
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - whatsapp-net
+
+  # =============================================
+  # Redis - Filas e cache
+  # =============================================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - whatsapp-net
+
+volumes:
+  mongodb_data:
+  redis_data:
+  evolution_instances:
+
+networks:
+  whatsapp-net:
+    driver: bridge
