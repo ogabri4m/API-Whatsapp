@@ -3,7 +3,7 @@ services:
   # Evolution API - Motor WhatsApp (Baileys)
   # =============================================
   evolution-api:
-    image: atendai/evolution-api:v2.2.3
+    image: atendai/evolution-api:v2.1.1
     container_name: evolution-api
     restart: always
     ports:
@@ -12,16 +12,15 @@ services:
       - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
       - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
       - DATABASE_ENABLED=true
-      - DATABASE_PROVIDER=mongodb
-      - DATABASE_CONNECTION_URI=mongodb://mongodb:27017/?directConnection=true
-      - DATABASE_CONNECTION_DB_PREFIX_NAME=evo_
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evo_user:evo_pass@postgres:5432/evolution?schema=public
       - DATABASE_SAVE_DATA_INSTANCE=true
       - DATABASE_SAVE_DATA_NEW_MESSAGE=true
       - DATABASE_SAVE_MESSAGE_UPDATE=true
       - DATABASE_SAVE_DATA_CONTACTS=true
       - DATABASE_SAVE_DATA_CHATS=true
       - CACHE_REDIS_ENABLED=true
-      - CACHE_REDIS_URI=redis://${REDIS_HOST}:${REDIS_PORT}
+      - CACHE_REDIS_URI=redis://redis:6379
       - CACHE_LOCAL_ENABLED=false
       - LOG_LEVEL=WARN
       - DEL_INSTANCE=false
@@ -34,7 +33,7 @@ services:
       - WEBHOOK_EVENTS_CONNECTION_UPDATE=true
       - WEBHOOK_EVENTS_QRCODE_UPDATED=true
     depends_on:
-      - mongodb
+      - postgres
       - redis
     networks:
       - whatsapp-net
@@ -61,16 +60,20 @@ services:
       - whatsapp-net
 
   # =============================================
-  # MongoDB - Banco de dados do Evolution API
+  # PostgreSQL - Banco de dados do Evolution API v2
   # =============================================
-  mongodb:
-    image: mongo:7
-    container_name: mongodb
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
     restart: always
+    environment:
+      - POSTGRES_USER=evo_user
+      - POSTGRES_PASSWORD=evo_pass
+      - POSTGRES_DB=evolution
     volumes:
-      - mongodb_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - "27017:27017"
+      - "5432:5432"
     networks:
       - whatsapp-net
 
@@ -89,7 +92,7 @@ services:
       - whatsapp-net
 
 volumes:
-  mongodb_data:
+  postgres_data:
   redis_data:
   evolution_instances:
 
